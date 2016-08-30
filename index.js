@@ -1,10 +1,21 @@
-import Model from './src/model';
-const models = {};
+import ListModel from './src/list';
+import ObjectModel from './src/object';
 
-export function model(name) {
-  if (!models[name]) {
-    models[name] = new Model();
+const lists = {};
+const objects = {};
+
+export function objectModel(name) {
+  if (!objects[name]) {
+    objects[name] = new ObjectModel();
   }
 
-  return models[name];
+  return objects[name];
+}
+
+export function listModel(name) {
+  if (!lists[name]) {
+    lists[name] = new ListModel();
+  }
+
+  return lists[name];
 }

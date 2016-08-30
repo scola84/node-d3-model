@@ -1,4 +1,4 @@
-import EventEmitter from 'events';
+import { EventEmitter } from '@scola/events';
 import get from 'lodash-es/get';
 import set from 'lodash-es/set';
 import merge from 'lodash-es/merge';
@@ -16,7 +16,7 @@ export default class Model extends EventEmitter {
     this._origin = {};
     this._values = {};
 
-    this._handleChange = () => this._change();
+    this._handleChange = (e) => this._change(e);
   }
 
   destroy() {
@@ -50,7 +50,9 @@ export default class Model extends EventEmitter {
     set(this._values, name, value);
 
     this.emit('change', {
-      diff: this.diff()
+      action: 'set',
+      name,
+      value
     });
 
     return this;
@@ -73,7 +75,7 @@ export default class Model extends EventEmitter {
       return this._values;
     }
 
-    this._values = values;
+    this._values = merge({}, values);
     return this.commit();
   }
 
@@ -88,7 +90,10 @@ export default class Model extends EventEmitter {
 
   rollback() {
     merge(this._values, this._origin);
-    this.emit('change');
+
+    this.emit('change', {
+      action: 'rollback'
+    });
 
     return this;
   }
@@ -98,46 +103,18 @@ export default class Model extends EventEmitter {
       this._unbindModel(this._model);
     }
 
-    this._model = model;
-    this._models.add(this._model);
+    if (!this._models.has(model)) {
+      this._models.add(model);
 
-    this._bindModel(this._model);
-
-    return this;
-  }
-
-  select(callback) {
-    this._model
-      .select()
-      .execute((error, data) => {
-        this._handleSelect(error, data, callback);
-      });
-  }
-
-  insert(callback) {
-    this._model
-      .insert()
-      .execute(this._values, callback);
-  }
-
-  update(callback) {
-    this._model
-      .update()
-      .execute(this._values, callback);
-  }
-
-  delete(callback) {
-    this._model
-      .delete()
-      .execute(callback);
-  }
-
-  getMaxListeners() {
-    if (typeof this._maxListeners === 'undefined') {
-      return EventEmitter.defaultMaxListeners;
+      if (this._subscribe) {
+        model.subscribe(true);
+      }
     }
 
-    return this._maxListeners;
+    this._model = model;
+
+    this._bindModel(this._model);
+    return this;
   }
 
   _bindModel(model) {
@@ -148,23 +125,7 @@ export default class Model extends EventEmitter {
     model.removeListener('change', this._handleChange);
   }
 
-  _handleSelect(error, data, callback) {
-    if (error) {
-      callback(error);
-      return;
-    }
-
-    this._change(null, data);
-
-    if (this._subscribe) {
-      this._model.subscribe(true);
-    }
-
-    callback(null, this._model);
-  }
-
-  _change(diff, data) {
-    this.values(data);
-    this.emit('change');
+  _change() {
+    throw new Error('Not implemented');
   }
 }
