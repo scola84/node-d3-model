@@ -4,6 +4,10 @@ import ObjectModel from './src/object';
 const lists = {};
 const objects = {};
 
+export const MODE_NONE = 0;
+export const MODE_SUB = 1;
+export const MODE_UNSUB = 2;
+
 export function objectModel(name) {
   if (!objects[name]) {
     objects[name] = new ObjectModel();

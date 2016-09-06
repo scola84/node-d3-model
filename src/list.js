@@ -1,8 +1,8 @@
 import Model from './model';
 
 export default class ListModel extends Model {
-  count(count) {
-    return this._model.count(count);
+  count(value) {
+    return this._model.count(value);
   }
 
   meta(callback, force) {
@@ -13,9 +13,9 @@ export default class ListModel extends Model {
       }, force);
   }
 
-  page(callback, force) {
+  page(index, callback, force) {
     this._model
-      .page(this.get('index'))
+      .page(index)
       .select()
       .execute(callback, force);
   }
@@ -27,9 +27,5 @@ export default class ListModel extends Model {
     }
 
     callback(error, data, list);
-  }
-
-  _change(event) {
-    this.emit('change', event);
   }
 }
