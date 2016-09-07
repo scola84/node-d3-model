@@ -10,7 +10,8 @@ export const MODE_UNSUB = 2;
 
 export function objectModel(name) {
   if (!objects[name]) {
-    objects[name] = new ObjectModel();
+    objects[name] = new ObjectModel()
+      .name(name);
   }
 
   return objects[name];
@@ -18,7 +19,8 @@ export function objectModel(name) {
 
 export function listModel(name) {
   if (!lists[name]) {
-    lists[name] = new ListModel();
+    lists[name] = new ListModel()
+      .name(name);
   }
 
   return lists[name];

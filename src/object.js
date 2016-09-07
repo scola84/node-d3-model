@@ -8,6 +8,7 @@ export default class ObjectModel extends Model {
   constructor() {
     super();
 
+    this._storage = null;
     this._origin = {};
     this._values = {};
   }
@@ -17,6 +18,27 @@ export default class ObjectModel extends Model {
     this._values = {};
 
     super.destroy();
+  }
+
+  storage(value) {
+    this._storage = value;
+    return this;
+  }
+
+  load() {
+    const values = this._storage.getItem(this._name);
+
+    if (values) {
+      this._origin = JSON.parse(values);
+      this._values = this._origin;
+    }
+
+    return this;
+  }
+
+  save() {
+    this._storage.setItem(this._name, JSON.stringify(this._origin));
+    return this;
   }
 
   get(name) {

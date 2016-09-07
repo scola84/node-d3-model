@@ -4,6 +4,7 @@ export default class Model extends EventEmitter {
   constructor() {
     super();
 
+    this._name = null;
     this._models = new Set();
     this._model = null;
     this._mode = 0;
@@ -22,6 +23,11 @@ export default class Model extends EventEmitter {
 
     this._models.clear();
     this._model = null;
+  }
+
+  name(value) {
+    this._name = value;
+    return this;
   }
 
   mode(value) {
