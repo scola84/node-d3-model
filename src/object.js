@@ -119,7 +119,13 @@ export default class ObjectModel extends Model {
       .execute(callback);
   }
 
-  _handleSelect(error, data, callback) {
+  fetch(callback) {
+    this._model.fetch((error, data) => {
+      this._handleSelect(error, data, callback);
+    });
+  }
+
+  _handleSelect(error, data, callback = () => {}) {
     if (error) {
       callback(error);
       return;

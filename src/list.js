@@ -20,7 +20,11 @@ export default class ListModel extends Model {
       .execute(callback, force);
   }
 
-  _handleMeta(error, data, list, callback) {
+  fetch(callback) {
+    this._model.fetch(callback);
+  }
+
+  _handleMeta(error, data, list, callback = () => {}) {
     if (error) {
       callback(error);
       return;
