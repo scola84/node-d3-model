@@ -9,13 +9,13 @@
   "jsnext:main": "./index.js",
   "dependencies": {
     "@scola/events": "3.0.0",
-    "lodash-es": "^4.15.0",
+    "lodash-es": "^4.16.2",
     "odiff": "0.0.2"
   },
   "devDependencies": {
-    "rollup": "^0.35.9",
-    "rollup-plugin-buble": "^0.13.0",
-    "rollup-plugin-commonjs": "^4.1.0",
+    "rollup": "^0.36.0",
+    "rollup-plugin-buble": "^0.14.0",
+    "rollup-plugin-commonjs": "^5.0.4",
     "rollup-plugin-node-resolve": "^2.0.0"
   },
   "scripts": {
