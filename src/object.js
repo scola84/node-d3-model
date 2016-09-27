@@ -9,6 +9,7 @@ export default class ObjectModel extends Model {
     super();
 
     this._storage = null;
+    this._locked = false;
     this._origin = {};
     this._values = {};
   }
@@ -22,6 +23,11 @@ export default class ObjectModel extends Model {
 
   storage(value) {
     this._storage = value;
+    return this;
+  }
+
+  lock() {
+    this._locked = true;
     return this;
   }
 
@@ -46,6 +52,10 @@ export default class ObjectModel extends Model {
   }
 
   set(name, value) {
+    if (this._locked === true) {
+      return this;
+    }
+
     set(this._values, name, value);
 
     return this.emit('set', {
