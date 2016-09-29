@@ -1,4 +1,4 @@
-import { EventEmitter } from '@scola/events';
+import { EventEmitter } from 'events';
 
 export default class Model extends EventEmitter {
   constructor() {

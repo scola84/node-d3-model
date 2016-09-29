@@ -8,22 +8,22 @@
   "main": "./dist/model.js",
   "jsnext:main": "./index.js",
   "dependencies": {
-    "@scola/events": "3.0.0",
     "lodash-es": "^4.16.2",
     "odiff": "0.0.2"
   },
   "devDependencies": {
-    "rollup": "^0.36.0",
+    "rollup": "^0.36.1",
     "rollup-plugin-buble": "^0.14.0",
     "rollup-plugin-commonjs": "^5.0.4",
+    "rollup-plugin-node-builtins": "^1.2.0",
     "rollup-plugin-node-resolve": "^2.0.0"
   },
   "scripts": {
     "build": "npm run cleanup && npm run rollup",
     "build:min": "npm run build && npm run min",
     "cleanup": "rm -rf dist",
-    "min": "npm run min:js && gzip -9 -k dist/*",
-    "min:js": "uglifyjs dist/d3-model.js -m -o dist/d3-model.min.js",
-    "rollup": "rollup -c -n d3 -o dist/d3-model.js"
+    "min": "uglifyjs dist/d3-model.js -m -o dist/d3-model.min.js",
+    "prepublish": "npm run build:min",
+    "rollup": "rollup -c"
   }
 }
