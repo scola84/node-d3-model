@@ -19,7 +19,11 @@
     "rollup-plugin-node-resolve": "^2.0.0"
   },
   "scripts": {
-    "build": "rollup -c -n d3 -o dist/d3-model.js",
-    "build:min": "uglifyjs dist/d3-model.js -c -m -o dist/d3-model.min.js"
+    "build": "npm run cleanup && npm run rollup",
+    "build:min": "npm run build && npm run min",
+    "cleanup": "rm -rf dist",
+    "min": "npm run min:js && gzip -9 -k dist/*",
+    "min:js": "uglifyjs dist/d3-model.js -m -o dist/d3-model.min.js",
+    "rollup": "rollup -c -n d3 -o dist/d3-model.js"
   }
 }
