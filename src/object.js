@@ -58,11 +58,13 @@ export default class ObjectModel extends Model {
 
     set(this._values, name, value);
 
-    return this.emit('set', {
+    this.emit('set', {
       diff: this.diff(),
       name,
       value
     });
+
+    return this;
   }
 
   add(name, value, action) {
@@ -95,12 +97,16 @@ export default class ObjectModel extends Model {
 
   commit() {
     merge(this._origin, this._values);
-    return this.emit('commit');
+    this.emit('commit');
+
+    return this;
   }
 
   rollback() {
     merge(this._values, this._origin);
-    return this.emit('rollback');
+    this.emit('rollback');
+
+    return this;
   }
 
   select(callback) {
