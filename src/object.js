@@ -9,15 +9,13 @@ export default class ObjectModel extends Model {
     super();
 
     this._storage = null;
-    this._locked = false;
+    this._lock = false;
     this._origin = {};
     this._values = {};
   }
 
   destroy() {
-    this._origin = {};
-    this._values = {};
-
+    this.clear();
     super.destroy();
   }
 
@@ -27,7 +25,14 @@ export default class ObjectModel extends Model {
   }
 
   lock() {
-    this._locked = true;
+    this._lock = true;
+    return this;
+  }
+
+  clear() {
+    this._origin = {};
+    this._values = {};
+
     return this;
   }
 
@@ -35,8 +40,7 @@ export default class ObjectModel extends Model {
     const values = this._storage.getItem(this._name);
 
     if (values) {
-      this._origin = JSON.parse(values);
-      this._values = this._origin;
+      this.values(JSON.parse(values));
     }
 
     return this;
@@ -47,12 +51,17 @@ export default class ObjectModel extends Model {
     return this;
   }
 
+  unload() {
+    this._storage.removeItem(this._name);
+    return this;
+  }
+
   get(name) {
     return get(this._values, name);
   }
 
   set(name, value) {
-    if (this._locked === true) {
+    if (this._lock === true) {
       return this;
     }
 
