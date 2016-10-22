@@ -112,7 +112,7 @@ export default class ObjectModel extends Model {
   }
 
   rollback() {
-    merge(this._values, this._origin);
+    this._values = this._origin;
     this.emit('rollback');
 
     return this;
