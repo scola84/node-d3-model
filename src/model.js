@@ -10,7 +10,6 @@ export default class Model extends EventEmitter {
     this._mode = 0;
 
     this._handleChange = (e) => this._change(e);
-    this._handleOpen = (e) => this._open(e);
   }
 
   destroy() {
@@ -62,19 +61,13 @@ export default class Model extends EventEmitter {
 
   _bindModel(model) {
     model.addListener('change', this._handleChange);
-    model.addListener('open', this._handleOpen);
   }
 
   _unbindModel(model) {
     model.removeListener('change', this._handleChange);
-    model.removeListener('open', this._handleOpen);
   }
 
   _change(event) {
     this.emit('change', event);
-  }
-
-  _open(event) {
-    this.emit('open', event);
   }
 }
