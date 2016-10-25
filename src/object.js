@@ -145,15 +145,8 @@ export default class ObjectModel extends Model {
   }
 
   fetch(callback) {
-    this._model.fetch((fetchError) => {
-      if (fetchError) {
-        callback(fetchError);
-        return;
-      }
-
-      this._model.data((dataError, data) => {
-        this._handleSelect(dataError, data, callback);
-      });
+    this._model.fetch((error, data) => {
+      this._handleSelect(error, data, callback);
     });
   }
 
