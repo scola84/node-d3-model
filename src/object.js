@@ -60,7 +60,7 @@ export default class ObjectModel extends Model {
     return get(this._values, name);
   }
 
-  set(name, value) {
+  set(name, value, detail) {
     if (this._lock === true) {
       return this;
     }
@@ -68,6 +68,7 @@ export default class ObjectModel extends Model {
     set(this._values, name, value);
 
     this.emit('set', {
+      detail,
       diff: this.diff(),
       name,
       value
