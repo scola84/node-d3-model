@@ -36,18 +36,20 @@ export default class ObjectModel extends Model {
     return this;
   }
 
-  load() {
+  load(deserialize = (v) => v) {
     const values = this._storage.getItem(this._name);
 
     if (values) {
-      this.values(JSON.parse(values));
+      this.values(deserialize(JSON.parse(values)));
     }
 
     return this;
   }
 
-  save() {
-    this._storage.setItem(this._name, JSON.stringify(this._origin));
+  save(serialize = (v) => v) {
+    const values = JSON.stringify(serialize(merge({}, this._origin)));
+    this._storage.setItem(this._name, values);
+
     return this;
   }
 
