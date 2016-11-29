@@ -4,24 +4,20 @@ import ObjectModel from './src/object';
 const lists = {};
 const objects = {};
 
-export const MODE_NONE = 0;
-export const MODE_SUB = 1;
-export const MODE_UNSUB = 2;
+export { ListModel, ObjectModel };
 
-export function objectModel(name) {
-  if (!objects[name]) {
-    objects[name] = new ObjectModel()
-      .name(name);
+export function objectModel(path) {
+  if (!objects[path]) {
+    objects[path] = new ObjectModel().path(path);
   }
 
-  return objects[name];
+  return objects[path];
 }
 
-export function listModel(name) {
-  if (!lists[name]) {
-    lists[name] = new ListModel()
-      .name(name);
+export function listModel(path) {
+  if (!lists[path]) {
+    lists[path] = new ListModel().path(path);
   }
 
-  return lists[name];
+  return lists[path];
 }

@@ -1,35 +1,18 @@
 import Model from './model';
 
 export default class ListModel extends Model {
-  count(value) {
-    return this._model.count(value);
+  data(data) {
+    return this.remote(data);
   }
 
-  meta(callback, force) {
-    this._model
-      .meta()
-      .execute((error, data, list) => {
-        this._handleMeta(error, data, list, callback);
-      }, force);
+  id() {
+    return {
+      path: this._path,
+      query: this._local
+    };
   }
 
-  page(index, callback, force) {
-    this._model
-      .page(index)
-      .select()
-      .execute(callback, force);
-  }
-
-  fetch(callback) {
-    this._model.fetch(callback);
-  }
-
-  _handleMeta(error, data, list, callback = () => {}) {
-    if (error) {
-      callback(error);
-      return;
-    }
-
-    callback(error, data, list);
+  parse() {
+    return [this._parse(this._local)];
   }
 }
