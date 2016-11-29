@@ -89,13 +89,13 @@ export default class Model extends EventEmitter {
   }
 
   load(callback = () => {}) {
-    this._cache.get(this.id(), (error, object) => {
+    this._cache.get(this.id(), (error, object, valid) => {
       if (error) {
         callback(error);
         return;
       }
 
-      if (!object) {
+      if (!object || !valid) {
         this._remote = null;
         this._last = false;
         return;
