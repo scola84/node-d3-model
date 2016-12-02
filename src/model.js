@@ -1,5 +1,7 @@
 import EventEmitter from 'events';
 import get from 'lodash-es/get';
+import has from 'lodash-es/has';
+import merge from 'lodash-es/merge';
 import set from 'lodash-es/set';
 import odiff from 'odiff';
 import pathToRegexp from 'path-to-regexp';
@@ -9,8 +11,14 @@ export default class Model extends EventEmitter {
     super();
 
     this._cache = null;
+    this._id = null;
     this._connection = null;
     this._path = null;
+
+    this._serialize = (o) => o;
+    this._deserialize = (o) => o;
+
+    this._parser = null;
     this._keys = [];
     this._state = 'idle';
 
@@ -19,22 +27,54 @@ export default class Model extends EventEmitter {
     this._last = false;
   }
 
-  cache(value) {
+  cache(value = null, id = (p, l) => [p, l]) {
+    if (value === null) {
+      return this._cache;
+    }
+
     this._cache = value;
+    this._id = id;
+
     return this;
   }
 
-  connection(value) {
+  connection(value = null) {
+    if (value === null) {
+      return this._connection;
+    }
+
     this._connection = value;
     return this;
   }
 
-  path(value) {
-    this._parse = pathToRegexp.compile(value);
+  path(value = null) {
+    if (value === null) {
+      return this._path;
+    }
+
     this._path = value;
+    this._parser = pathToRegexp.compile(value);
 
     pathToRegexp(value, this._keys);
 
+    return this;
+  }
+
+  serialize(value = null) {
+    if (value === null) {
+      return this._serialize;
+    }
+
+    this._serialize = value;
+    return this;
+  }
+
+  deserialize(value = null) {
+    if (value === null) {
+      return this._deserialize;
+    }
+
+    this._deserialize = value;
     return this;
   }
 
@@ -66,9 +106,23 @@ export default class Model extends EventEmitter {
     return value;
   }
 
-  set(name, value) {
+  has(name) {
+    if (has(this._local, name)) {
+      return true;
+    }
+
+    return has(this._remote, name);
+  }
+
+  set(name, value, scope) {
     set(this._local, name, value);
-    this.emit('set', { name, value });
+
+    this.emit('set', {
+      name,
+      value,
+      scope
+    });
+
     return this;
   }
 
@@ -82,6 +136,14 @@ export default class Model extends EventEmitter {
     }
 
     return this.set(name, values.sort());
+  }
+
+  flush() {
+    this._local = {};
+    this._remote = {};
+    this._last = false;
+
+    return this;
   }
 
   diff() {
@@ -98,11 +160,13 @@ export default class Model extends EventEmitter {
       if (!object || !valid) {
         this._remote = null;
         this._last = false;
+
+        callback();
         return;
       }
 
-      this._local = object.local;
-      this._remote = object.remote;
+      this._local = this._deserialize(object.local, 'local');
+      this._remote = this._deserialize(object.remote, 'remote');
       this._last = object.last;
 
       callback();
@@ -111,8 +175,8 @@ export default class Model extends EventEmitter {
 
   save(callback = () => {}) {
     const object = {
-      local: this._local,
-      remote: this._remote,
+      local: this._serialize(merge({}, this._local), 'local'),
+      remote: this._serialize(merge({}, this._remote), 'remote'),
       last: this._last
     };
 
@@ -130,9 +194,8 @@ export default class Model extends EventEmitter {
     }
 
     this._state = 'busy';
-    this.load();
 
-    const [path, local = {}] = this.parse();
+    const [path, local = {}] = this._parse();
 
     const request = this._connection
       .request()
@@ -147,7 +210,10 @@ export default class Model extends EventEmitter {
     });
 
     request.end(null, (response) => {
-      this._handleSelect(response, callback);
+      this._handleSelect(response, (error, data) => {
+        this._state = 'idle';
+        callback(error, data);
+      });
     });
   }
 
@@ -159,46 +225,21 @@ export default class Model extends EventEmitter {
     throw new Error('Not implemented');
   }
 
-  parse() {
-    throw new Error('Not implemented');
-  }
+  _parse() {
+    const local = this._serialize(merge({}, this._local), 'local');
+    const path = this._parser(local);
 
-  _handleSelect(response, callback) {
-    if (response.status() >= 300) {
-      this._state = 'idle';
-    }
-
-    if (response.status() >= 500) {
-      callback(new Error(response.status()));
-      return;
-    }
-
-    if (response.status() >= 400) {
-      callback(new Error(response.status()));
-      return;
-    }
-
-    if (response.status() === 304) {
-      this.emit('data', this._remote);
-      callback(null, this._remote);
-      return;
-    }
-
-    this._handleResponse(response, (error, data) => {
-      this._state = 'idle';
-      callback(null, data);
+    this._keys.forEach((key) => {
+      delete local[key.name];
     });
+
+    return [path, local];
   }
 
-  _handleResponse(response, callback) {
-    if (response.header('x-last')) {
-      this._last = response.header('x-last');
-    }
-
+  _extract(response, callback) {
     let data = '';
 
     response.once('error', (error) => {
-      this._state = 'idle';
       response.removeAllListeners();
       callback(error);
     });
@@ -213,18 +254,52 @@ export default class Model extends EventEmitter {
 
     response.once('end', () => {
       response.removeAllListeners();
-
-      this
-        .data(data)
-        .save((error) => {
-          if (error) {
-            callback(error);
-            return;
-          }
-
-          this.emit('data', this._remote);
-          callback(null, this._remote);
-        });
+      response.data(data);
+      callback();
     });
+  }
+
+  _handleSelect(response, callback) {
+    this._extract(response, (extractError) => {
+      if (extractError) {
+        callback(extractError);
+        return;
+      }
+
+      if (response.status() >= 300) {
+        this._state = 'idle';
+      }
+
+      if (response.status() >= 500) {
+        callback(new Error(response.data()));
+        return;
+      }
+
+      if (response.status() >= 400) {
+        callback(new Error(response.data()));
+        return;
+      }
+
+      if (response.status() === 304) {
+        this.emit('data', this._remote);
+        callback(null, this._remote);
+        return;
+      }
+
+      this._handleResponse(response, (error, data) => {
+        callback(null, data);
+      });
+    });
+  }
+
+  _handleResponse(response, callback) {
+    if (response.header('x-last')) {
+      this._last = response.header('x-last');
+    }
+
+    this.data(response.data());
+    this.emit('data', this._remote);
+
+    callback(null, this._remote);
   }
 }

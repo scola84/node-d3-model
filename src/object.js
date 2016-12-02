@@ -1,3 +1,4 @@
+import { ScolaError } from '@scola/error';
 import Model from './model';
 
 export default class ObjectModel extends Model {
@@ -8,111 +9,145 @@ export default class ObjectModel extends Model {
   }
 
   id() {
-    return this._parse(this._local);
-  }
-
-  parse() {
-    const local = Object.assign({}, this._local);
-    const path = this._parse(local);
-
-    this._keys.forEach((key) => {
-      delete local[key.name];
-    });
-
-    return [path, local];
+    const [path] = this._id(...this._parse());
+    return { path };
   }
 
   insert(callback = () => {}) {
     if (this._state === 'busy') {
-      callback(new Error('500 model_state busy'));
+      callback(new ScolaError('500 model_state busy'));
       return;
     }
 
     this._state = 'busy';
-    const [path, local] = this.parse();
+    const [path, local] = this._parse();
 
-    this._connection
+    const request = this._connection
       .request()
       .method('POST')
-      .path(path)
-      .end(local, (response) => {
-        this._handleInsert(response, callback);
+      .path(path);
+
+    request.once('error', (error) => {
+      this._state = 'idle';
+      callback(error);
+    });
+
+    request.end(local, (response) => {
+      this._handleInsert(response, (error, data) => {
+        this._state = 'idle';
+        callback(error, data);
       });
+    });
   }
 
   update(callback = () => {}) {
     if (this._state === 'busy') {
-      callback(new Error('500 model_state busy'));
+      callback(new ScolaError('500 model_state busy'));
       return;
     }
 
     this._state = 'busy';
-    const [path, local] = this.parse();
+    const [path, local] = this._parse();
 
-    this._connection
+    const request = this._connection
       .request()
       .method('PUT')
-      .path(path)
-      .end(local, (response) => {
-        this._handleUpdate(response, callback);
+      .path(path);
+
+    request.once('error', (error) => {
+      this._state = 'idle';
+      callback(error);
+    });
+
+    request.end(local, (response) => {
+      this._handleUpdate(response, (error, data) => {
+        this._state = 'idle';
+        callback(error, data);
       });
+    });
   }
 
   delete(callback = () => {}) {
     if (this._state === 'busy') {
-      callback(new Error('500 model_state busy'));
+      callback(new ScolaError('500 model_state busy'));
       return;
     }
 
     this._state = 'busy';
+    const [path] = this._parse();
 
-    this._connection
+    const request = this._connection
       .request()
       .method('DELETE')
-      .path(this._path)
-      .end(null, (response) => {
-        this._handleDelete(response, callback);
+      .path(path);
+
+    request.once('error', (error) => {
+      this._state = 'idle';
+      callback(error);
+    });
+
+    request.end(null, (response) => {
+      this._handleDelete(response, (error, data) => {
+        this._state = 'idle';
+        callback(error, data);
       });
+    });
   }
 
   _handleInsert(response, callback) {
-    if (response.status() !== 201) {
-      this._state = 'idle';
-      callback(new Error(response.status()));
-      return;
-    }
+    this._extract(response, (extractError) => {
+      if (extractError) {
+        callback(extractError);
+        return;
+      }
 
-    this._handleResponse(response, (error, data) => {
-      this._state = 'idle';
-      this.emit('insert');
-      callback(error, data);
+      if (response.status() !== 201) {
+        callback(new ScolaError(response.data()));
+        return;
+      }
+
+      this._handleResponse(response, (error, data) => {
+        this.emit('insert');
+        callback(error, data);
+      });
     });
   }
 
   _handleUpdate(response, callback) {
-    if (response.status() !== 200) {
-      this._state = 'idle';
-      callback(new Error(response.status()));
-      return;
-    }
+    this._extract(response, (extractError) => {
+      if (extractError) {
+        callback(extractError);
+        return;
+      }
 
-    this._handleResponse(response, (error, data) => {
-      this._state = 'idle';
-      this.emit('update');
-      callback(error, data);
+      if (response.status() !== 200) {
+        callback(new ScolaError(response.data()));
+        return;
+      }
+
+      this._handleResponse(response, (error, data) => {
+        this.emit('update');
+        callback(error, data);
+      });
     });
   }
 
   _handleDelete(response, callback) {
-    if (response.status() !== 200) {
-      callback(new Error(response.status()));
-      return;
-    }
+    this._extract(response, (extractError) => {
+      if (extractError) {
+        callback(extractError);
+        return;
+      }
 
-    this.remove((error) => {
-      this._state = 'idle';
-      this.emit('delete');
-      callback(error);
+      if (response.status() !== 200) {
+        callback(new ScolaError(response.data()));
+        return;
+      }
+
+      this.remove((error) => {
+        this.emit('delete');
+        callback(error);
+      });
     });
   }
 }

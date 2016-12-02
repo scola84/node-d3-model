@@ -6,13 +6,7 @@ export default class ListModel extends Model {
   }
 
   id() {
-    return {
-      path: this._path,
-      query: this._local
-    };
-  }
-
-  parse() {
-    return [this._parse(this._local)];
+    const [path, local] = this._id(...this._parse());
+    return { path, local };
   }
 }
