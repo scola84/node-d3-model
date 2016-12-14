@@ -226,7 +226,7 @@ export default class Model extends EventEmitter {
   }
 
   _parse() {
-    const local = this._serialize(merge({}, this._local), 'local');
+    const local = this._serialize(merge({}, this._local), 'parse');
     const path = this._parser(local);
 
     this._keys.forEach((key) => {

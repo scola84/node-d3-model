@@ -2,10 +2,14 @@ import { ScolaError } from '@scola/error';
 import Model from './model';
 
 export default class ObjectModel extends Model {
-  data(data) {
+  data(value) {
+    if (value === null) {
+      return this.local();
+    }
+
     return this
-      .local(data)
-      .remote(data);
+      .local(value)
+      .remote(value);
   }
 
   id() {

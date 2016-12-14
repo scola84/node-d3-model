@@ -1,8 +1,8 @@
 import Model from './model';
 
 export default class ListModel extends Model {
-  data(data) {
-    return this.remote(data);
+  data(value) {
+    return this.remote(value);
   }
 
   id() {
