@@ -1,4 +1,4 @@
-import { ScolaError } from '@scola/core';
+import { ScolaError } from '@scola/error';
 import Model from './model';
 
 export default class ObjectModel extends Model {
