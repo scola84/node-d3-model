@@ -8,7 +8,7 @@
   "main": "./dist/model.js",
   "jsnext:main": "./index.js",
   "dependencies": {
-    "@scola/core": "^1.2.0",
+    "@scola/error": "^4.3.0",
     "lodash-es": "^4.17.2",
     "odiff": "0.0.2",
     "path-to-regexp": "^1.7.0"

@@ -1,23 +1,17 @@
-import ListModel from './src/list';
-import ObjectModel from './src/object';
+import Model from './src/model';
 
-const lists = {};
-const objects = {};
+const models = {};
 
-export { ListModel, ObjectModel };
-
-export function objectModel(path) {
-  if (!objects[path]) {
-    objects[path] = new ObjectModel().path(path);
+export function model(path, singleton) {
+  if (singleton === false) {
+    return new Model()
+      .path(path);
   }
 
-  return objects[path];
-}
-
-export function listModel(path) {
-  if (!lists[path]) {
-    lists[path] = new ListModel().path(path);
+  if (!models[path]) {
+    models[path] = new Model()
+      .path(path);
   }
 
-  return lists[path];
+  return models[path];
 }

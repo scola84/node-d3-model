@@ -5,37 +5,27 @@ import merge from 'lodash-es/merge';
 import set from 'lodash-es/set';
 import odiff from 'odiff';
 import pathToRegexp from 'path-to-regexp';
+import { ScolaError } from '@scola/error';
+import { helper as extract } from '@scola/extract';
 
 export default class Model extends EventEmitter {
   constructor() {
     super();
 
-    this._cache = null;
-    this._id = null;
     this._connection = null;
+    this._cache = null;
     this._path = null;
-
-    this._serialize = (o) => o;
-    this._deserialize = (o) => o;
 
     this._parser = null;
     this._keys = [];
     this._state = 'idle';
 
+    this._serialize = (o) => o;
+    this._deserialize = (o) => o;
+
     this._local = {};
     this._remote = {};
     this._last = false;
-  }
-
-  cache(value = null, id = (p, l) => [p, l]) {
-    if (value === null) {
-      return this._cache;
-    }
-
-    this._cache = value;
-    this._id = id;
-
-    return this;
   }
 
   connection(value = null) {
@@ -44,6 +34,15 @@ export default class Model extends EventEmitter {
     }
 
     this._connection = value;
+    return this;
+  }
+
+  cache(value = null) {
+    if (value === null) {
+      return this._cache;
+    }
+
+    this._cache = value;
     return this;
   }
 
@@ -96,6 +95,15 @@ export default class Model extends EventEmitter {
     return this;
   }
 
+  last(value = null) {
+    if (value === null) {
+      return this._last;
+    }
+
+    this._last = value;
+    return this;
+  }
+
   get(name) {
     let value = get(this._local, name);
 
@@ -126,7 +134,7 @@ export default class Model extends EventEmitter {
     return this;
   }
 
-  add(name, value, action) {
+  add(name, value, action = true) {
     const values = this.get(name) || [];
 
     if (action === true) {
@@ -151,7 +159,7 @@ export default class Model extends EventEmitter {
   }
 
   load(callback = () => {}) {
-    this._cache.get(this.id(), (error, object, valid) => {
+    this._cache.get(this._key(), (error, object, valid) => {
       if (error) {
         callback(error);
         return;
@@ -180,11 +188,11 @@ export default class Model extends EventEmitter {
       last: this._last
     };
 
-    this._cache.set(this.id(), object, callback);
+    this._cache.set(this._key(), object, callback);
   }
 
   remove(callback = () => {}) {
-    this._cache.delete(this.id(), callback);
+    this._cache.delete(this._key(), callback);
   }
 
   select(callback = () => {}) {
@@ -217,12 +225,90 @@ export default class Model extends EventEmitter {
     });
   }
 
-  data() {
-    throw new Error('Not implemented');
+  insert(callback = () => {}) {
+    if (this._state === 'busy') {
+      callback(new ScolaError('500 model_state busy'));
+      return;
+    }
+
+    this._state = 'busy';
+    const [path, local] = this._parse();
+
+    const request = this._connection
+      .request()
+      .method('POST')
+      .path(path);
+
+    request.once('error', (error) => {
+      this._state = 'idle';
+      callback(error);
+    });
+
+    request.end(local, (response) => {
+      this._handleInsert(response, (error, data) => {
+        this._state = 'idle';
+        callback(error, data);
+      });
+    });
   }
 
-  id() {
-    throw new Error('Not implemented');
+  update(callback = () => {}) {
+    if (this._state === 'busy') {
+      callback(new ScolaError('500 model_state busy'));
+      return;
+    }
+
+    this._state = 'busy';
+    const [path, local] = this._parse();
+
+    const request = this._connection
+      .request()
+      .method('PUT')
+      .path(path);
+
+    request.once('error', (error) => {
+      this._state = 'idle';
+      callback(error);
+    });
+
+    request.end(local, (response) => {
+      this._handleUpdate(response, (error, data) => {
+        this._state = 'idle';
+        callback(error, data);
+      });
+    });
+  }
+
+  delete(callback = () => {}) {
+    if (this._state === 'busy') {
+      callback(new ScolaError('500 model_state busy'));
+      return;
+    }
+
+    this._state = 'busy';
+    const [path] = this._parse();
+
+    const request = this._connection
+      .request()
+      .method('DELETE')
+      .path(path);
+
+    request.once('error', (error) => {
+      this._state = 'idle';
+      callback(error);
+    });
+
+    request.end(null, (response) => {
+      this._handleDelete(response, (error, data) => {
+        this._state = 'idle';
+        callback(error, data);
+      });
+    });
+  }
+
+  _key() {
+    const [path] = this._parse();
+    return { path };
   }
 
   _parse() {
@@ -236,31 +322,8 @@ export default class Model extends EventEmitter {
     return [path, local];
   }
 
-  _extract(response, callback) {
-    let data = '';
-
-    response.once('error', (error) => {
-      response.removeAllListeners();
-      callback(error);
-    });
-
-    response.on('data', (chunk) => {
-      if (typeof chunk === 'string') {
-        data += chunk;
-      } else {
-        data = chunk;
-      }
-    });
-
-    response.once('end', () => {
-      response.removeAllListeners();
-      response.data(data);
-      callback();
-    });
-  }
-
   _handleSelect(response, callback) {
-    this._extract(response, (extractError) => {
+    extract(response, (extractError) => {
       if (extractError) {
         callback(extractError);
         return;
@@ -292,12 +355,69 @@ export default class Model extends EventEmitter {
     });
   }
 
+  _handleInsert(response, callback) {
+    extract(response, (extractError) => {
+      if (extractError) {
+        callback(extractError);
+        return;
+      }
+
+      if (response.status() !== 201) {
+        callback(new ScolaError(response.data()));
+        return;
+      }
+
+      this._handleResponse(response, (error, data) => {
+        this.emit('insert');
+        callback(error, data);
+      });
+    });
+  }
+
+  _handleUpdate(response, callback) {
+    extract(response, (extractError) => {
+      if (extractError) {
+        callback(extractError);
+        return;
+      }
+
+      if (response.status() !== 200) {
+        callback(new ScolaError(response.data()));
+        return;
+      }
+
+      this._handleResponse(response, (error, data) => {
+        this.emit('update');
+        callback(error, data);
+      });
+    });
+  }
+
+  _handleDelete(response, callback) {
+    extract(response, (extractError) => {
+      if (extractError) {
+        callback(extractError);
+        return;
+      }
+
+      if (response.status() !== 200) {
+        callback(new ScolaError(response.data()));
+        return;
+      }
+
+      this.remove((error) => {
+        this.emit('delete');
+        callback(error);
+      });
+    });
+  }
+
   _handleResponse(response, callback) {
     if (response.header('x-last')) {
       this._last = response.header('x-last');
     }
 
-    this.data(response.data());
+    this._remote = response.data();
     this.emit('data', this._remote);
 
     callback(null, this._remote);
