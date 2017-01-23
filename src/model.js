@@ -195,14 +195,12 @@ export default class Model extends EventEmitter {
     this._cache.delete(this._key(), callback);
   }
 
-  select(callback = () => {}) {
+  select(stream = false) {
     if (this._state === 'busy') {
-      callback(new Error('500 model_state busy'));
-      return;
+      return this;
     }
 
     this._state = 'busy';
-
     const [path, local = {}] = this._parse();
 
     const request = this._connection
@@ -214,21 +212,25 @@ export default class Model extends EventEmitter {
 
     request.once('error', (error) => {
       this._state = 'idle';
-      callback(error);
+      this.emit('error', error);
     });
 
-    request.end(null, (response) => {
-      this._handleSelect(response, (error, data) => {
-        this._state = 'idle';
-        callback(error, data);
-      });
+    request.once('response', (response) => {
+      this._handleSelect(response);
     });
+
+    if (stream === true) {
+      request.write('');
+      return request;
+    }
+
+    request.end();
+    return this;
   }
 
-  insert(callback = () => {}) {
+  insert() {
     if (this._state === 'busy') {
-      callback(new ScolaError('500 model_state busy'));
-      return;
+      return this;
     }
 
     this._state = 'busy';
@@ -241,21 +243,20 @@ export default class Model extends EventEmitter {
 
     request.once('error', (error) => {
       this._state = 'idle';
-      callback(error);
+      this.emit('error', error);
     });
 
-    request.end(local, (response) => {
-      this._handleInsert(response, (error, data) => {
-        this._state = 'idle';
-        callback(error, data);
-      });
+    request.once('response', (response) => {
+      this._handleInsert(response);
     });
+
+    request.end(local);
+    return this;
   }
 
-  update(callback = () => {}) {
+  update() {
     if (this._state === 'busy') {
-      callback(new ScolaError('500 model_state busy'));
-      return;
+      return this;
     }
 
     this._state = 'busy';
@@ -268,21 +269,20 @@ export default class Model extends EventEmitter {
 
     request.once('error', (error) => {
       this._state = 'idle';
-      callback(error);
+      this.emit('error', error);
     });
 
-    request.end(local, (response) => {
-      this._handleUpdate(response, (error, data) => {
-        this._state = 'idle';
-        callback(error, data);
-      });
+    request.once('response', (response) => {
+      this._handleUpdate(response);
     });
+
+    request.end(local);
+    return this;
   }
 
-  delete(callback = () => {}) {
+  delete() {
     if (this._state === 'busy') {
-      callback(new ScolaError('500 model_state busy'));
-      return;
+      return this;
     }
 
     this._state = 'busy';
@@ -295,13 +295,99 @@ export default class Model extends EventEmitter {
 
     request.once('error', (error) => {
       this._state = 'idle';
-      callback(error);
+      this.emit('error', error);
     });
 
-    request.end(null, (response) => {
-      this._handleDelete(response, (error, data) => {
-        this._state = 'idle';
-        callback(error, data);
+    request.once('response', (response) => {
+      this._handleDelete(response);
+    });
+
+    request.end();
+    return this;
+  }
+
+  _handleSelect(response) {
+    this._state = 'idle';
+
+    response.on('error', (error) => {
+      this.emit('error', error);
+    });
+
+    response.on('data', (data) => {
+      if (response.status() >= 400) {
+        this.emit('error', new Error(data));
+        return;
+      }
+
+      if (response.status() === 304) {
+        this.emit('select', this._remote);
+        return;
+      }
+
+      if (response.header('x-last')) {
+        this._last = response.header('x-last');
+      }
+
+      this._remote = data;
+      this.emit('select', data);
+    });
+  }
+
+  _handleInsert(response) {
+    this._state = 'idle';
+
+    extract(response, (error) => {
+      if (error) {
+        this.emit('error', error);
+        return;
+      }
+
+      if (response.status() !== 201) {
+        this.emit('error', new ScolaError(response.data()));
+        return;
+      }
+
+      this._remote = response.data();
+      this.emit('insert', this._remote);
+    });
+  }
+
+  _handleUpdate(response) {
+    this._state = 'idle';
+
+    extract(response, (error) => {
+      if (error) {
+        this.emit('error', error);
+        return;
+      }
+
+      if (response.status() !== 200) {
+        this.emit('error', new ScolaError(response.data()));
+        return;
+      }
+
+      this._remote = response.data();
+      this.emit('update', this._remote);
+    });
+  }
+
+  _handleDelete(response) {
+    this._state = 'idle';
+
+    extract(response, (error) => {
+      if (error) {
+        this.emit('error', error);
+        return;
+      }
+
+      if (response.status() !== 200) {
+        this.emit('error', new ScolaError(response.data()));
+        return;
+      }
+
+      this.remove(() => {
+        this.flush();
+        this.emit('delete');
       });
     });
   }
@@ -320,106 +406,5 @@ export default class Model extends EventEmitter {
     });
 
     return [path, local];
-  }
-
-  _handleSelect(response, callback) {
-    extract(response, (extractError) => {
-      if (extractError) {
-        callback(extractError);
-        return;
-      }
-
-      if (response.status() >= 300) {
-        this._state = 'idle';
-      }
-
-      if (response.status() >= 500) {
-        callback(new Error(response.data()));
-        return;
-      }
-
-      if (response.status() >= 400) {
-        callback(new Error(response.data()));
-        return;
-      }
-
-      if (response.status() === 304) {
-        this.emit('data', this._remote);
-        callback(null, this._remote);
-        return;
-      }
-
-      this._handleResponse(response, (error, data) => {
-        callback(null, data);
-      });
-    });
-  }
-
-  _handleInsert(response, callback) {
-    extract(response, (extractError) => {
-      if (extractError) {
-        callback(extractError);
-        return;
-      }
-
-      if (response.status() !== 201) {
-        callback(new ScolaError(response.data()));
-        return;
-      }
-
-      this._handleResponse(response, (error, data) => {
-        this.emit('insert');
-        callback(error, data);
-      });
-    });
-  }
-
-  _handleUpdate(response, callback) {
-    extract(response, (extractError) => {
-      if (extractError) {
-        callback(extractError);
-        return;
-      }
-
-      if (response.status() !== 200) {
-        callback(new ScolaError(response.data()));
-        return;
-      }
-
-      this._handleResponse(response, (error, data) => {
-        this.emit('update');
-        callback(error, data);
-      });
-    });
-  }
-
-  _handleDelete(response, callback) {
-    extract(response, (extractError) => {
-      if (extractError) {
-        callback(extractError);
-        return;
-      }
-
-      if (response.status() !== 200) {
-        callback(new ScolaError(response.data()));
-        return;
-      }
-
-      this.remove((error) => {
-        this.emit('delete');
-        callback(error);
-      });
-    });
-  }
-
-  _handleResponse(response, callback) {
-    if (response.header('x-last')) {
-      this._last = response.header('x-last');
-    }
-
-    this._remote = response.data();
-    this.emit('data', this._remote);
-
-    callback(null, this._remote);
   }
 }
