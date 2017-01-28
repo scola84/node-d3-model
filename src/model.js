@@ -166,7 +166,7 @@ export default class Model extends EventEmitter {
       }
 
       if (!object || !valid) {
-        this._remote = null;
+        this._remote = {};
         this._last = false;
 
         callback();
