@@ -2,16 +2,16 @@ import Model from './src/model';
 
 const models = {};
 
-export function model(path, singleton) {
-  if (singleton === false) {
-    return new Model()
-      .path(path);
+export function model(path, singleton = false) {
+  if (models[path]) {
+    return models[path];
   }
 
-  if (!models[path]) {
-    models[path] = new Model()
-      .path(path);
+  const instance = new Model().path(path);
+
+  if (singleton === true) {
+    models[path] = instance;
   }
 
-  return models[path];
+  return instance;
 }
