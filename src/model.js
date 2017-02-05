@@ -25,10 +25,27 @@ export default class Model extends EventEmitter {
     this._deserialize = (o) => o;
 
     this._local = {};
-    this._remote = {};
+    this._remote = null;
 
     this._request = null;
+    this._response = null;
     this._stream = false;
+
+    this._handleSocket = () => this._socket();
+    this._objectMode();
+  }
+
+  destroy() {
+    if (this._request) {
+      this._request.end();
+    }
+
+    this._unbindConnection();
+
+    this._connection = null;
+    this._cache = null;
+    this._serialize = null;
+    this._unserialize = null;
   }
 
   connection(value = null) {
@@ -37,6 +54,8 @@ export default class Model extends EventEmitter {
     }
 
     this._connection = value;
+    this._bindConnection();
+
     return this;
   }
 
@@ -67,7 +86,12 @@ export default class Model extends EventEmitter {
       return this._mode;
     }
 
-    this._mode = value;
+    if (value === 'list') {
+      this._listMode();
+    } else if (value === 'object') {
+      this._objectMode();
+    }
+
     return this;
   }
 
@@ -201,16 +225,16 @@ export default class Model extends EventEmitter {
       return this._stream;
     }
 
+    this._stream = action;
+
     if (action === false) {
       this._request.end();
-      this._cleanup();
+      this._request = null;
 
       return this;
     }
 
-    this._stream = true;
     this.select();
-
     return this;
   }
 
@@ -328,6 +352,14 @@ export default class Model extends EventEmitter {
     return this;
   }
 
+  _bindConnection() {
+    this._connection.on('socket', this._handleSocket);
+  }
+
+  _unbindConnection() {
+    this._connection.removeListener('socket', this._handleSocket);
+  }
+
   _handleSelect(response) {
     this._state = 'idle';
 
@@ -348,9 +380,10 @@ export default class Model extends EventEmitter {
     response.once('end', () => {
       if (this._request) {
         this._request.destroy();
+        this._request = null;
       }
 
-      this._cleanup();
+      this._response = null;
     });
 
     if (this._stream) {
@@ -416,10 +449,14 @@ export default class Model extends EventEmitter {
     });
   }
 
-  _cleanup() {
-    this._stream = false;
-    this._request = null;
-    this._response = null;
+  _listMode() {
+    this._mode = 'list';
+    this._remote = [];
+  }
+
+  _objectMode() {
+    this._mode = 'object';
+    this._remote = {};
   }
 
   _key() {
@@ -436,5 +473,11 @@ export default class Model extends EventEmitter {
     });
 
     return [path, local];
+  }
+
+  _socket() {
+    if (this._stream === true) {
+      this.select();
+    }
   }
 }
