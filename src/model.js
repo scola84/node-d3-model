@@ -1,6 +1,7 @@
 import EventEmitter from 'events';
 import get from 'lodash-es/get';
 import has from 'lodash-es/has';
+import isEqual from 'lodash-es/isEqual';
 import merge from 'lodash-es/merge';
 import set from 'lodash-es/set';
 import odiff from 'odiff';
@@ -145,9 +146,13 @@ export default class Model extends EventEmitter {
   }
 
   set(name, value, scope) {
+    const old = this.get(name);
+    const changed = !isEqual(old, value);
+
     set(this._local, name, value);
 
     this.emit('set', {
+      changed,
       name,
       value,
       scope
