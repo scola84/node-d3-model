@@ -517,7 +517,7 @@ export default class Model extends EventEmitter {
   }
 
   _open() {
-    if (this._subscribe === true) {
+    if (this._subscribe === true && this._request) {
       this.select();
     }
   }
