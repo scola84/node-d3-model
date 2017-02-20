@@ -14,9 +14,12 @@ export default class Model extends EventEmitter {
     super();
 
     this._connection = null;
-    this._cache = null;
     this._path = null;
     this._mode = null;
+    this._state = 'idle';
+
+    this._storage = null;
+    this._key = () => this._path;
 
     this._parser = null;
     this._keys = [];
@@ -36,16 +39,6 @@ export default class Model extends EventEmitter {
     this._subscribe = false;
 
     this._handleOpen = () => this._open();
-
-    this._handleData = (d) => this._data(d);
-    this._handleEnd = () => this._end();
-    this._handleError = (e) => this._error(e);
-
-    this._handleSelect = (r) => this._select(r);
-    this._handleInsert = (r) => this._insert(r);
-    this._handleUpdate = (r) => this._update(r);
-    this._handleDelete = (r) => this._delete(r);
-
     this._objectMode();
   }
 
@@ -54,7 +47,7 @@ export default class Model extends EventEmitter {
     this._unbindConnection();
 
     this._connection = null;
-    this._cache = null;
+    this._storage = null;
     this._serialize = null;
     this._unserialize = null;
   }
@@ -68,15 +61,6 @@ export default class Model extends EventEmitter {
     return this;
   }
 
-  cache(value = null) {
-    if (value === null) {
-      return this._cache;
-    }
-
-    this._cache = value;
-    return this;
-  }
-
   connection(value = null) {
     if (value === null) {
       return this._connection;
@@ -84,6 +68,17 @@ export default class Model extends EventEmitter {
 
     this._connection = value;
     this._bindConnection();
+
+    return this;
+  }
+
+  storage(value = null, key = null) {
+    if (value === null) {
+      return this._storage;
+    }
+
+    this._storage = value;
+    this._key = key || this._key;
 
     return this;
   }
@@ -111,24 +106,6 @@ export default class Model extends EventEmitter {
     this._parser = pathToRegexp.compile(value);
 
     pathToRegexp(value, this._keys);
-
-    return this;
-  }
-
-  subscribe(action = null) {
-    if (action === null) {
-      return this._subscribe;
-    }
-
-    this._subscribe = action;
-
-    if (action === false) {
-      if (this._request) {
-        this._request.end();
-      }
-
-      this._end();
-    }
 
     return this;
   }
@@ -174,8 +151,42 @@ export default class Model extends EventEmitter {
     return this;
   }
 
+  diff() {
+    return odiff(this._remote, this._local);
+  }
+
   total() {
     return this._total;
+  }
+
+  load(callback) {
+    const syncObject = this._storage
+      .getItem(this._key(), (error, object) => {
+        this._load(error, object, callback);
+      });
+
+    if (!callback) {
+      this._load(null, syncObject);
+    }
+
+    return this;
+  }
+
+  save(callback) {
+    const object = {
+      local: this._serialize(merge({}, this._local), 'local'),
+      remote: this._serialize(merge({}, this._local), 'remote')
+    };
+
+    this._storage.setItem(this._key(),
+      JSON.stringify(object), callback);
+
+    return this;
+  }
+
+  remove(callback) {
+    this._storage.removeItem(this._key(), callback);
+    return this;
   }
 
   get(name) {
@@ -222,60 +233,29 @@ export default class Model extends EventEmitter {
     return this;
   }
 
-  flush() {
+  flush(storage = false) {
     this._local = {};
     this._remote = {};
+
+    if (storage) {
+      this.remove();
+    }
 
     return this;
   }
 
-  diff() {
-    return odiff(this._remote, this._local);
-  }
-
-  load(callback = () => {}) {
-    this._cache.get(this._key(), (error, object, valid) => {
-      if (error) {
-        callback(error);
-        return;
-      }
-
-      if (!object || !valid) {
-        this._remote = {};
-        callback();
-        return;
-      }
-
-      this._local = this._deserialize(object.local, 'local');
-      this._remote = this._deserialize(object.remote, 'remote');
-
-      callback();
-    });
-  }
-
-  save(callback = () => {}) {
-    const object = {
-      local: this._serialize(merge({}, this._local), 'local'),
-      remote: this._serialize(merge({}, this._remote), 'remote')
-    };
-
-    this._cache.set(this._key(), object, callback);
-  }
-
-  remove(callback = () => {}) {
-    this._cache.delete(this._key(), callback);
-  }
-
   select() {
+    if (this._state === 'busy') {
+      return this;
+    }
+
+    this._state = 'busy';
+
     if (this._subscribe === true) {
       this._end();
     }
 
-    if (this._request) {
-      return this;
-    }
-
-    const [path, local = {}] = this._parse();
+    const [path, local] = this._parse();
 
     this._request = this._connection
       .request()
@@ -290,8 +270,14 @@ export default class Model extends EventEmitter {
       this._request.header('x-etag', this._etag);
     }
 
-    this._request.once('error', this._handleError);
-    this._request.once('response', this._handleSelect);
+    this._request.once('error', (error) => {
+      this._end();
+      this._error(error);
+    });
+
+    this._request.once('response', (response) => {
+      this._select(response);
+    });
 
     if (this._subscribe === true) {
       this._request.write('');
@@ -303,87 +289,225 @@ export default class Model extends EventEmitter {
   }
 
   insert() {
-    if (this._request) {
+    if (this._state === 'busy') {
       return this;
     }
 
+    this._state = 'busy';
+
     const [path, local] = this._parse();
 
-    this._request = this._connection
+    const request = this._connection
       .request()
       .method('POST')
       .path(path);
 
-    this._request.once('error', this._handleError);
-    this._request.once('response', this._handleInsert);
-    this._request.end(local);
+    request.once('error', (error) => {
+      request.removeAllListeners();
+      this._error(error);
+    });
 
+    request.once('response', (response) => {
+      request.removeAllListeners();
+      this._insert(response);
+    });
+
+    request.end(local);
     return this;
   }
 
   update() {
-    if (this._request) {
+    if (this._state === 'busy') {
       return this;
     }
 
+    this._state = 'busy';
+
     const [path, local] = this._parse();
 
-    this._request = this._connection
+    const request = this._connection
       .request()
       .method('PUT')
       .path(path);
 
-    this._request.once('error', this._handleError);
-    this._request.once('response', this._handleUpdate);
-    this._request.end(local);
+    request.once('error', (error) => {
+      request.removeAllListeners();
+      this._error(error);
+    });
 
+    request.once('response', (response) => {
+      request.removeAllListeners();
+      this._update(response);
+    });
+
+    request.end(local);
     return this;
   }
 
   delete() {
-    if (this._request) {
+    if (this._state === 'busy') {
       return this;
     }
 
+    this._state = 'busy';
+
     const [path] = this._parse();
 
-    this._request = this._connection
+    const request = this._connection
       .request()
       .method('DELETE')
       .path(path);
 
-    this._request.once('error', this._handleError);
-    this._request.once('response', this._handleDelete);
-    this._request.end();
+    request.once('error', (error) => {
+      request.removeAllListeners();
+      this._error(error);
+    });
 
+    request.once('response', (response) => {
+      request.removeAllListeners();
+      this._delete(response);
+    });
+
+    request.end();
     return this;
   }
 
-  _bindConnection() {
-    if (this._connection) {
-      if (this._auth === true) {
-        this._connection.on('user', this._handleOpen);
-      } else {
-        this._connection.on('open', this._handleOpen);
+  subscribe(action = null) {
+    if (action === null) {
+      return this._subscribe;
+    }
+
+    this._subscribe = action;
+
+    if (action === false) {
+      if (this._request) {
+        this._request.header('x-etag', false);
+        this._request.end();
       }
+
+      this._end();
+    }
+
+    return this.select();
+  }
+
+  _bindConnection() {
+    if (!this._connection) {
+      return;
+    }
+
+    if (this._auth === true) {
+      this._connection.on('user', this._handleOpen);
+    } else {
+      this._connection.on('open', this._handleOpen);
     }
   }
 
   _unbindConnection() {
-    if (this._connection) {
-      if (this._auth === true) {
-        this._connection.removeListener('user', this._handleOpen);
-      } else {
-        this._connection.removeListener('open', this._handleOpen);
-      }
+    if (!this._connection) {
+      return;
+    }
+
+    if (this._auth === true) {
+      this._connection.removeListener('user', this._handleOpen);
+    } else {
+      this._connection.removeListener('open', this._handleOpen);
     }
   }
 
   _select(response) {
+    this._state = 'idle';
     this._response = response;
-    this._response.once('error', this._handleError);
-    this._response.once('end', this._handleEnd);
-    this._response.on('data', this._handleData);
+
+    this._response.on('data', (data) => {
+      this._data(data);
+    });
+
+    this._response.on('end', () => {
+      this._end();
+    });
+
+    this._response.on('error', (error) => {
+      this._end();
+      this._error(error);
+    });
+  }
+
+  _insert(response) {
+    this._state = 'idle';
+
+    extract(response, (error) => {
+      if (error) {
+        this.emit('error', error);
+        return;
+      }
+
+      if (response.status() !== 201) {
+        this.emit('error', new ScolaError(response.data()));
+        return;
+      }
+
+      this.emit('insert', response.data());
+    });
+  }
+
+  _update(response) {
+    this._state = 'idle';
+
+    extract(response, (error) => {
+      if (error) {
+        this.emit('error', error);
+        return;
+      }
+
+      if (response.status() !== 200) {
+        this.emit('error', new ScolaError(response.data()));
+        return;
+      }
+
+      this.remote(response.data());
+      this.emit('update', this._remote);
+    });
+  }
+
+  _delete(response) {
+    this._state = 'idle';
+
+    extract(response, (error) => {
+      if (error) {
+        this.emit('error', error);
+        return;
+      }
+
+      if (response.status() !== 200) {
+        this.emit('error', new ScolaError(response.data()));
+        return;
+      }
+
+      this.remove(() => {
+        this.flush();
+        this.emit('delete');
+      });
+    });
+  }
+
+  _load(error, object, callback = () => {}) {
+    if (error) {
+      callback(error);
+      return;
+    }
+
+    if (!object) {
+      callback();
+      return;
+    }
+
+    object = JSON.parse(object);
+
+    this._local = this._deserialize(object.local, 'local');
+    this._remote = this._deserialize(object.local, 'remote');
+
+    callback();
   }
 
   _data(data) {
@@ -413,64 +537,6 @@ export default class Model extends EventEmitter {
     this.emit('select', data);
   }
 
-  _insert(response) {
-    this._end();
-
-    extract(response, (error) => {
-      if (error) {
-        this.emit('error', error);
-        return;
-      }
-
-      if (response.status() !== 201) {
-        this.emit('error', new ScolaError(response.data()));
-        return;
-      }
-
-      this.emit('insert', response.data());
-    });
-  }
-
-  _update(response) {
-    this._end();
-
-    extract(response, (error) => {
-      if (error) {
-        this.emit('error', error);
-        return;
-      }
-
-      if (response.status() !== 200) {
-        this.emit('error', new ScolaError(response.data()));
-        return;
-      }
-
-      this.remote(response.data());
-      this.emit('update', this._remote);
-    });
-  }
-
-  _delete(response) {
-    this._end();
-
-    extract(response, (error) => {
-      if (error) {
-        this.emit('error', error);
-        return;
-      }
-
-      if (response.status() !== 200) {
-        this.emit('error', new ScolaError(response.data()));
-        return;
-      }
-
-      this.remove(() => {
-        this.flush();
-        this.emit('delete');
-      });
-    });
-  }
-
   _end() {
     if (this._request) {
       this._request.removeAllListeners();
@@ -486,7 +552,7 @@ export default class Model extends EventEmitter {
   }
 
   _error(error) {
-    this._end();
+    this._state = 'idle';
     this.emit('error', error);
   }
 
@@ -498,11 +564,6 @@ export default class Model extends EventEmitter {
   _objectMode() {
     this._mode = 'object';
     this._remote = {};
-  }
-
-  _key() {
-    const [path] = this._parse();
-    return { path };
   }
 
   _parse() {
