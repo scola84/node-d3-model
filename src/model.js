@@ -14,15 +14,16 @@ export default class Model extends EventEmitter {
     super();
 
     this._connection = null;
-    this._path = null;
+    this._auth = null;
     this._mode = null;
     this._state = 'idle';
 
-    this._storage = null;
-    this._key = () => this._path;
-
+    this._path = null;
     this._parser = null;
     this._keys = [];
+
+    this._storage = null;
+    this._key = () => this._path;
 
     this._serialize = (o) => o;
     this._deserialize = (o) => o;
@@ -32,11 +33,10 @@ export default class Model extends EventEmitter {
     this._total = null;
     this._etag = null;
 
+    this._subscribe = false;
+
     this._request = null;
     this._response = null;
-
-    this._auth = null;
-    this._subscribe = false;
 
     this._handleOpen = () => this._open();
     this._objectMode();
@@ -48,8 +48,14 @@ export default class Model extends EventEmitter {
 
     this._connection = null;
     this._storage = null;
+
     this._serialize = null;
     this._unserialize = null;
+
+    this._local = {};
+    this._remote = null;
+    this._total = null;
+    this._etag = null;
   }
 
   auth(value = null) {
@@ -383,9 +389,13 @@ export default class Model extends EventEmitter {
       if (this._request) {
         this._request.header('x-etag', false);
         this._request.end();
+
+        this._etag = null;
+        this._request = null;
       }
 
       this._end();
+      return this;
     }
 
     return this.select();
