@@ -385,20 +385,20 @@ export default class Model extends EventEmitter {
 
     this._subscribe = action;
 
-    if (action === false) {
-      if (this._request) {
-        this._request.header('x-etag', false);
-        this._request.end();
-
-        this._etag = null;
-        this._request = null;
-      }
-
-      this._end();
-      return this;
+    if (action === true) {
+      return this.select();
     }
 
-    return this.select();
+    if (this._request) {
+      this._request.header('x-etag', false);
+      this._request.end();
+
+      this._etag = null;
+      this._request = null;
+    }
+
+    this._end();
+    return this;
   }
 
   _bindConnection() {
