@@ -34,6 +34,7 @@ export default class Model extends EventEmitter {
     this._etag = null;
 
     this._subscribe = false;
+    this._selected = false;
 
     this._request = null;
     this._response = null;
@@ -54,8 +55,6 @@ export default class Model extends EventEmitter {
 
     this._local = {};
     this._remote = null;
-    this._total = null;
-    this._etag = null;
   }
 
   auth(value = null) {
@@ -258,7 +257,7 @@ export default class Model extends EventEmitter {
     this._state = 'busy';
 
     if (this._subscribe === true) {
-      this._end();
+      this._end(false);
     }
 
     const [path, local] = this._parse();
@@ -392,9 +391,6 @@ export default class Model extends EventEmitter {
     if (this._request) {
       this._request.header('x-etag', false);
       this._request.end();
-
-      this._etag = null;
-      this._request = null;
     }
 
     this._end();
@@ -426,6 +422,7 @@ export default class Model extends EventEmitter {
   }
 
   _select(response) {
+    this._selected = true;
     this._state = 'idle';
     this._response = response;
 
@@ -547,7 +544,12 @@ export default class Model extends EventEmitter {
     this.emit('select', data);
   }
 
-  _end() {
+  _end(properties = true) {
+    if (properties === true) {
+      this._etag = null;
+      this._total = null;
+    }
+
     if (this._request) {
       this._request.removeAllListeners();
       this._request.destroy();
@@ -588,7 +590,7 @@ export default class Model extends EventEmitter {
   }
 
   _open() {
-    if (this._subscribe === true && this._request) {
+    if (this._subscribe === true && this._selected === true) {
       this.select();
     }
   }
