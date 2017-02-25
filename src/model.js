@@ -4,6 +4,7 @@ import has from 'lodash-es/has';
 import isEqual from 'lodash-es/isEqual';
 import merge from 'lodash-es/merge';
 import set from 'lodash-es/set';
+import unset from 'lodash-es/unset';
 import odiff from 'odiff';
 import pathToRegexp from 'path-to-regexp';
 import { ScolaError } from '@scola/error';
@@ -13,39 +14,42 @@ export default class Model extends EventEmitter {
   constructor() {
     super();
 
-    this._connection = null;
-    this._auth = null;
-    this._mode = null;
-    this._state = 'idle';
-
     this._path = null;
     this._parser = null;
     this._keys = [];
 
+    this._connection = null;
     this._storage = null;
     this._key = () => this._path;
-
     this._serialize = (o) => o;
     this._deserialize = (o) => o;
 
+    this._auth = null;
+    this._mode = 'object';
+    this._state = 'idle';
+
     this._local = {};
-    this._remote = null;
+    this._remote = {};
+
     this._total = null;
     this._etag = null;
 
-    this._subscribe = false;
+    this._subscribed = false;
     this._selected = false;
 
     this._request = null;
     this._response = null;
 
+    this._handleAuth = (v) => this._open(v);
+    this._handleData = (d) => this._data(d);
+    this._handleEnd = () => this._destroy();
+    this._handleError = (e) => this._error(e);
     this._handleOpen = () => this._open();
-    this._objectMode();
+    this._handleResponse = (r) => this._select(r);
   }
 
   destroy() {
-    this._end();
-    this._unbindConnection();
+    this._destroy();
 
     this._connection = null;
     this._storage = null;
@@ -54,52 +58,7 @@ export default class Model extends EventEmitter {
     this._unserialize = null;
 
     this._local = {};
-    this._remote = null;
-  }
-
-  auth(value = null) {
-    if (value === null) {
-      return this._auth;
-    }
-
-    this._auth = value;
-    return this;
-  }
-
-  connection(value = null) {
-    if (value === null) {
-      return this._connection;
-    }
-
-    this._connection = value;
-    this._bindConnection();
-
-    return this;
-  }
-
-  storage(value = null, key = null) {
-    if (value === null) {
-      return this._storage;
-    }
-
-    this._storage = value;
-    this._key = key || this._key;
-
-    return this;
-  }
-
-  mode(value = null) {
-    if (value === null) {
-      return this._mode;
-    }
-
-    if (value === 'list') {
-      this._listMode();
-    } else if (value === 'object') {
-      this._objectMode();
-    }
-
-    return this;
+    this._remote = {};
   }
 
   path(value = null) {
@@ -111,6 +70,26 @@ export default class Model extends EventEmitter {
     this._parser = pathToRegexp.compile(value);
 
     pathToRegexp(value, this._keys);
+
+    return this;
+  }
+
+  connection(value = null) {
+    if (value === null) {
+      return this._connection;
+    }
+
+    this._connection = value;
+    return this;
+  }
+
+  storage(value = null, key = null) {
+    if (value === null) {
+      return this._storage;
+    }
+
+    this._storage = value;
+    this._key = key || this._key;
 
     return this;
   }
@@ -130,6 +109,26 @@ export default class Model extends EventEmitter {
     }
 
     this._deserialize = value;
+    return this;
+  }
+
+  auth(value = null) {
+    if (value === null) {
+      return this._auth;
+    }
+
+    this._auth = value;
+    return this;
+  }
+
+  mode(value = null) {
+    if (value === null) {
+      return this._mode;
+    }
+
+    this._mode = value;
+    this._remote = value === 'list' ? [] : {};
+
     return this;
   }
 
@@ -158,6 +157,10 @@ export default class Model extends EventEmitter {
 
   diff() {
     return odiff(this._remote, this._local);
+  }
+
+  state() {
+    return this._state;
   }
 
   total() {
@@ -218,6 +221,11 @@ export default class Model extends EventEmitter {
     return this;
   }
 
+  unset(name) {
+    unset(this._local, name);
+    return;
+  }
+
   add(name, value, action = true) {
     const values = this.get(name) || [];
 
@@ -242,22 +250,44 @@ export default class Model extends EventEmitter {
     this._local = {};
     this._remote = {};
 
-    if (storage) {
+    if (storage === true && this._storage) {
       this.remove();
     }
 
     return this;
   }
 
+  subscribe(action = null) {
+    if (action === null) {
+      return this._subscribe;
+    }
+
+    this._subscribed = action;
+
+    if (action === true) {
+      this._subscribe();
+    } else if (action === false) {
+      this._unsubscribe();
+    }
+
+    return this;
+  }
+
   select() {
-    if (this._state === 'busy') {
+    this._selected = true;
+
+    if (!this._connection.writable()) {
+      this.emit('error', new ScolaError('500 invalid_socket'));
       return this;
     }
 
-    this._state = 'busy';
+    if (this._auth && !this._connection.auth()) {
+      this.emit('error', new ScolaError('401 invalid_user'));
+      return this;
+    }
 
-    if (this._subscribe === true) {
-      this._end(false);
+    if (this._subscribed === true) {
+      this._unsubscribe(false);
     }
 
     const [path, local] = this._parse();
@@ -275,16 +305,9 @@ export default class Model extends EventEmitter {
       this._request.header('x-etag', this._etag);
     }
 
-    this._request.once('error', (error) => {
-      this._end();
-      this._error(error);
-    });
+    this._bindRequest();
 
-    this._request.once('response', (response) => {
-      this._select(response);
-    });
-
-    if (this._subscribe === true) {
+    if (this._subscribed === true) {
       this._request.write('');
     } else {
       this._request.end();
@@ -295,6 +318,11 @@ export default class Model extends EventEmitter {
 
   insert() {
     if (this._state === 'busy') {
+      return this;
+    }
+
+    if (!this._connection.writable()) {
+      this.emit('error', new ScolaError('500 invalid_socket'));
       return this;
     }
 
@@ -326,6 +354,11 @@ export default class Model extends EventEmitter {
       return this;
     }
 
+    if (!this._connection.writable()) {
+      this.emit('error', new ScolaError('500 invalid_socket'));
+      return this;
+    }
+
     this._state = 'busy';
 
     const [path, local] = this._parse();
@@ -354,6 +387,11 @@ export default class Model extends EventEmitter {
       return this;
     }
 
+    if (!this._connection.writable()) {
+      this.emit('error', new ScolaError('500 invalid_socket'));
+      return this;
+    }
+
     this._state = 'busy';
 
     const [path] = this._parse();
@@ -377,33 +415,13 @@ export default class Model extends EventEmitter {
     return this;
   }
 
-  subscribe(action = null) {
-    if (action === null) {
-      return this._subscribe;
-    }
-
-    this._subscribe = action;
-
-    if (action === true) {
-      return this.select();
-    }
-
-    if (this._request) {
-      this._request.header('x-etag', false);
-      this._request.end();
-    }
-
-    this._end();
-    return this;
-  }
-
   _bindConnection() {
     if (!this._connection) {
       return;
     }
 
     if (this._auth === true) {
-      this._connection.on('user', this._handleOpen);
+      this._connection.on('auth', this._handleAuth);
     } else {
       this._connection.on('open', this._handleOpen);
     }
@@ -415,29 +433,75 @@ export default class Model extends EventEmitter {
     }
 
     if (this._auth === true) {
-      this._connection.removeListener('user', this._handleOpen);
+      this._connection.removeListener('auth', this._handleAuth);
     } else {
       this._connection.removeListener('open', this._handleOpen);
     }
   }
 
+  _bindRequest() {
+    this._request.on('error', this._handleError);
+    this._request.on('response', this._handleResponse);
+  }
+
+  _unbindRequest() {
+    this._request.removeListener('error', this._handleError);
+    this._request.removeListener('response', this._handleResponse);
+  }
+
+  _bindResponse() {
+    this._response.on('data', this._handleData);
+    this._response.on('end', this._handleEnd);
+    this._response.on('error', this._handleError);
+  }
+
+  _unbindResponse() {
+    this._response.removeListener('data', this._handleData);
+    this._response.removeListener('end', this._handleEnd);
+    this._response.removeListener('error', this._handleError);
+  }
+
+  _load(error, object, callback = () => {}) {
+    if (error) {
+      callback(error);
+      return;
+    }
+
+    if (!object) {
+      callback();
+      return;
+    }
+
+    object = JSON.parse(object);
+
+    this._local = this._deserialize(object.local, 'local');
+    this._remote = this._deserialize(object.local, 'remote');
+
+    callback();
+  }
+
+  _subscribe() {
+    this._bindConnection();
+  }
+
+  _unsubscribe(properties = true) {
+    if (this._request) {
+      this._request.header('x-etag', false);
+      this._request.end();
+    }
+
+    if (properties === true) {
+      this._etag = null;
+      this._total = null;
+    }
+
+    this._unbindConnection();
+    this._destroy();
+  }
+
   _select(response) {
-    this._selected = true;
-    this._state = 'idle';
     this._response = response;
-
-    this._response.on('data', (data) => {
-      this._data(data);
-    });
-
-    this._response.on('end', () => {
-      this._end();
-    });
-
-    this._response.on('error', (error) => {
-      this._end();
-      this._error(error);
-    });
+    this._bindResponse();
   }
 
   _insert(response) {
@@ -491,30 +555,9 @@ export default class Model extends EventEmitter {
         return;
       }
 
-      this.remove(() => {
-        this.flush();
-        this.emit('delete');
-      });
+      this.flush(true);
+      this.emit('delete');
     });
-  }
-
-  _load(error, object, callback = () => {}) {
-    if (error) {
-      callback(error);
-      return;
-    }
-
-    if (!object) {
-      callback();
-      return;
-    }
-
-    object = JSON.parse(object);
-
-    this._local = this._deserialize(object.local, 'local');
-    this._remote = this._deserialize(object.local, 'remote');
-
-    callback();
   }
 
   _data(data) {
@@ -544,38 +587,25 @@ export default class Model extends EventEmitter {
     this.emit('select', data);
   }
 
-  _end(properties = true) {
-    if (properties === true) {
-      this._etag = null;
-      this._total = null;
-    }
+  _error(error) {
+    this._state = 'idle';
+    this._destroy();
 
+    this.emit('error', error);
+  }
+
+  _destroy() {
     if (this._request) {
-      this._request.removeAllListeners();
+      this._unbindRequest();
       this._request.destroy();
       this._request = null;
     }
 
     if (this._response) {
-      this._response.removeAllListeners();
+      this._unbindResponse();
       this._response.destroy();
       this._response = null;
     }
-  }
-
-  _error(error) {
-    this._state = 'idle';
-    this.emit('error', error);
-  }
-
-  _listMode() {
-    this._mode = 'list';
-    this._remote = [];
-  }
-
-  _objectMode() {
-    this._mode = 'object';
-    this._remote = {};
   }
 
   _parse() {
@@ -589,8 +619,11 @@ export default class Model extends EventEmitter {
     return [path, local];
   }
 
-  _open() {
-    if (this._subscribe === true && this._selected === true) {
+  _open(value) {
+    const select = value !== false &&
+      this._selected === true;
+
+    if (select) {
       this.select();
     }
   }
