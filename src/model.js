@@ -318,6 +318,7 @@ export default class Model extends EventEmitter {
 
   insert() {
     if (this._state === 'busy') {
+      this.emit('error', new ScolaError('500 invalid_state'));
       return this;
     }
 
@@ -351,6 +352,7 @@ export default class Model extends EventEmitter {
 
   update() {
     if (this._state === 'busy') {
+      this.emit('error', new ScolaError('500 invalid_state'));
       return this;
     }
 
@@ -384,6 +386,7 @@ export default class Model extends EventEmitter {
 
   delete() {
     if (this._state === 'busy') {
+      this.emit('error', new ScolaError('500 invalid_state'));
       return this;
     }
 
