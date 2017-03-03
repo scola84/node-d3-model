@@ -1,10 +1,9 @@
 import Model from './src/model';
-
-export { default as Observer } from './src/observer';
+import Observer from './src/observer';
 
 const models = {};
 
-export function model(path, singleton = false) {
+function model(path, singleton = false) {
   if (models[path]) {
     return models[path];
   }
@@ -17,3 +16,8 @@ export function model(path, singleton = false) {
 
   return instance;
 }
+
+export {
+  Observer,
+  model
+};
