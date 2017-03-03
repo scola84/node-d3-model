@@ -1,5 +1,7 @@
 import Model from './src/model';
 
+export { default as Observer } from './src/observer';
+
 const models = {};
 
 export function model(path, singleton = false) {
