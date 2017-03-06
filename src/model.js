@@ -443,25 +443,33 @@ export default class Model extends EventEmitter {
   }
 
   _bindRequest() {
-    this._request.on('error', this._handleError);
-    this._request.on('response', this._handleResponse);
+    if (this._request) {
+      this._request.on('error', this._handleError);
+      this._request.on('response', this._handleResponse);
+    }
   }
 
   _unbindRequest() {
-    this._request.removeListener('error', this._handleError);
-    this._request.removeListener('response', this._handleResponse);
+    if (this._request) {
+      this._request.removeListener('error', this._handleError);
+      this._request.removeListener('response', this._handleResponse);
+    }
   }
 
   _bindResponse() {
-    this._response.on('data', this._handleData);
-    this._response.on('end', this._handleEnd);
-    this._response.on('error', this._handleError);
+    if (this._response) {
+      this._response.on('data', this._handleData);
+      this._response.on('end', this._handleEnd);
+      this._response.on('error', this._handleError);
+    }
   }
 
   _unbindResponse() {
-    this._response.removeListener('data', this._handleData);
-    this._response.removeListener('end', this._handleEnd);
-    this._response.removeListener('error', this._handleError);
+    if (this._response) {
+      this._response.removeListener('data', this._handleData);
+      this._response.removeListener('end', this._handleEnd);
+      this._response.removeListener('error', this._handleError);
+    }
   }
 
   _load(error, object, callback = () => {}) {
@@ -564,6 +572,10 @@ export default class Model extends EventEmitter {
   }
 
   _data(data) {
+    if (!this._response) {
+      return;
+    }
+
     if (this._response.status() >= 400) {
       this._error(new ScolaError(data));
       return;
