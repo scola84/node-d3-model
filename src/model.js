@@ -583,7 +583,7 @@ export default class Model extends EventEmitter {
     }
 
     if (this._response.header('x-total')) {
-      this._total = this._response.header('x-total');
+      this._total = Number(this._response.header('x-total'));
     }
 
     this.remote(data);
