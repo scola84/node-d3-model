@@ -6,7 +6,7 @@ export default class Observer extends EventEmitter {
 
     this._name = null;
     this._model = null;
-    this._format = null;
+    this._format = (v) => v;
 
     this._handleSet = (e) => this._set(e);
   }
@@ -24,13 +24,12 @@ export default class Observer extends EventEmitter {
     return this;
   }
 
-  model(value = null, format = (v) => v) {
+  model(value = null) {
     if (value === null) {
       return this._model;
     }
 
     this._model = value;
-    this._format = format;
 
     this._bindModel();
     this._set({
@@ -39,6 +38,15 @@ export default class Observer extends EventEmitter {
       value: value.get(this._name)
     });
 
+    return this;
+  }
+
+  format(value = null) {
+    if (value === null) {
+      return this._format;
+    }
+
+    this._format = value;
     return this;
   }
 
