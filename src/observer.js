@@ -30,8 +30,8 @@ export default class Observer extends EventEmitter {
     }
 
     this._model = value;
-
     this._bindModel();
+
     this._set({
       name: this._name,
       scope: 'model',

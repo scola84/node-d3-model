@@ -1,4 +1,4 @@
-import Model from './src/model';
+import Observable from './src/observable';
 import Observer from './src/observer';
 
 const models = {};
@@ -8,7 +8,8 @@ function model(path, singleton = false) {
     return models[path];
   }
 
-  const instance = new Model().path(path);
+  const instance = new Observable()
+    .path(path);
 
   if (singleton === true) {
     models[path] = instance;
@@ -18,6 +19,7 @@ function model(path, singleton = false) {
 }
 
 export {
+  Observable,
   Observer,
   model
 };

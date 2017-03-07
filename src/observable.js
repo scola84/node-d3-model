@@ -10,7 +10,7 @@ import pathToRegexp from 'path-to-regexp';
 import { ScolaError } from '@scola/error';
 import { helper as extract } from '@scola/extract';
 
-export default class Model extends EventEmitter {
+export default class Observable extends EventEmitter {
   constructor() {
     super();
 
