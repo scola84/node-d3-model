@@ -31,7 +31,7 @@ export default class Observable extends EventEmitter {
     this._local = {};
     this._remote = {};
 
-    this._total = null;
+    this._total = 0;
     this._etag = null;
 
     this._subscribed = false;
@@ -577,6 +577,7 @@ export default class Observable extends EventEmitter {
     }
 
     if (this._response.status() >= 400) {
+      this._total = 0;
       this._error(new ScolaError(data));
       return;
     }
