@@ -586,8 +586,8 @@ export default class Observable extends EventEmitter {
       return;
     }
 
-    if (this._response.header('x-change')) {
-      this.emit('change', data);
+    if (this._response.header('x-publish') === 1) {
+      this.emit('publish', data);
       return;
     }
 
