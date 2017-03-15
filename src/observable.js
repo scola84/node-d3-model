@@ -8,7 +8,6 @@ import unset from 'lodash-es/unset';
 import odiff from 'odiff';
 import pathToRegexp from 'path-to-regexp';
 import { ScolaError } from '@scola/error';
-import { helper as extract } from '@scola/extract';
 
 export default class Observable extends EventEmitter {
   constructor() {
@@ -43,9 +42,9 @@ export default class Observable extends EventEmitter {
     this._handleAuth = (v) => this._open(v);
     this._handleData = (d) => this._data(d);
     this._handleEnd = () => this._destroy();
-    this._handleError = (e) => this._error(e);
+    this._handleError = (e) => this._select(e);
     this._handleOpen = () => this._open();
-    this._handleResponse = (r) => this._select(r);
+    this._handleResponse = (r) => this._select(null, r);
   }
 
   destroy() {
@@ -339,12 +338,12 @@ export default class Observable extends EventEmitter {
 
     request.once('error', (error) => {
       request.removeAllListeners();
-      this._error(error);
+      this._insert(error);
     });
 
     request.once('response', (response) => {
       request.removeAllListeners();
-      this._insert(response);
+      this._insert(null, response);
     });
 
     request.end(local);
@@ -373,12 +372,12 @@ export default class Observable extends EventEmitter {
 
     request.once('error', (error) => {
       request.removeAllListeners();
-      this._error(error);
+      this._update(error);
     });
 
     request.once('response', (response) => {
       request.removeAllListeners();
-      this._update(response);
+      this._update(null, response);
     });
 
     request.end(local);
@@ -407,12 +406,12 @@ export default class Observable extends EventEmitter {
 
     request.once('error', (error) => {
       request.removeAllListeners();
-      this._error(error);
+      this._delete(error);
     });
 
     request.once('response', (response) => {
       request.removeAllListeners();
-      this._delete(response);
+      this._delete(null, response);
     });
 
     request.end();
@@ -506,59 +505,64 @@ export default class Observable extends EventEmitter {
     this._destroy();
   }
 
-  _select(response) {
+  _select(error, response) {
+    if (error) {
+      this._error(error);
+      return;
+    }
+
     this._response = response;
     this._bindResponse();
   }
 
-  _insert(response) {
+  _insert(error, response) {
     this._state = 'idle';
 
-    extract(response, (error) => {
-      if (error) {
-        this.emit('error', error);
-        return;
-      }
+    if (error) {
+      this.emit('error', error);
+      return;
+    }
 
+    this._extract(response, (data) => {
       if (response.status() !== 201) {
-        this.emit('error', new ScolaError(response.data()));
+        this.emit('error', new ScolaError(data));
         return;
       }
 
-      this.emit('insert', response.data());
+      this.emit('insert', data);
     });
   }
 
-  _update(response) {
+  _update(error, response) {
     this._state = 'idle';
 
-    extract(response, (error) => {
-      if (error) {
-        this.emit('error', error);
-        return;
-      }
+    if (error) {
+      this.emit('error', error);
+      return;
+    }
 
+    this._extract(response, (data) => {
       if (response.status() !== 200) {
-        this.emit('error', new ScolaError(response.data()));
+        this.emit('error', new ScolaError(data));
         return;
       }
 
-      this.remote(response.data());
+      this.remote(data);
       this.emit('update', this._remote);
     });
   }
 
-  _delete(response) {
+  _delete(error, response) {
     this._state = 'idle';
 
-    extract(response, (error) => {
-      if (error) {
-        this.emit('error', error);
-        return;
-      }
+    if (error) {
+      this.emit('error', error);
+      return;
+    }
 
+    this._extract(response, (data) => {
       if (response.status() !== 200) {
-        this.emit('error', new ScolaError(response.data()));
+        this.emit('error', new ScolaError(data));
         return;
       }
 
@@ -618,6 +622,35 @@ export default class Observable extends EventEmitter {
       this._response.destroy();
       this._response = null;
     }
+  }
+
+  _extract(response, callback) {
+    const chunks = [];
+
+    response.once('error', (error) => {
+      response.removeAllListeners();
+      this.emit('error', error);
+    });
+
+    response.on('data', (chunk) => {
+      chunks.push(chunk);
+    });
+
+    response.once('end', () => {
+      response.removeAllListeners();
+
+      let data = null;
+
+      if (chunks.length === 1) {
+        data = chunks[0];
+      } else if (Buffer.isBuffer(chunks[0])) {
+        data = Buffer.concat(chunks);
+      } else {
+        data = chunks.join('');
+      }
+
+      callback(data);
+    });
   }
 
   _parse() {
