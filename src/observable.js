@@ -139,7 +139,9 @@ export default class Observable extends EventEmitter {
       return this._local;
     }
 
+    this._local = {};
     this.assign(value);
+
     return this;
   }
 
