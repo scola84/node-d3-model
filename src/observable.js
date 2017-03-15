@@ -49,6 +49,7 @@ export default class Observable extends EventEmitter {
   }
 
   destroy() {
+    this._unbindConnection();
     this._destroy();
 
     this._connection = null;
@@ -80,6 +81,8 @@ export default class Observable extends EventEmitter {
     }
 
     this._connection = value;
+    this._bindConnection();
+
     return this;
   }
 
@@ -259,14 +262,12 @@ export default class Observable extends EventEmitter {
 
   subscribe(action = null) {
     if (action === null) {
-      return this._subscribe;
+      return this._subscribed;
     }
 
     this._subscribed = action;
 
-    if (action === true) {
-      this._subscribe();
-    } else if (action === false) {
+    if (action === false) {
       this._unsubscribe();
     }
 
@@ -491,10 +492,6 @@ export default class Observable extends EventEmitter {
     callback();
   }
 
-  _subscribe() {
-    this._bindConnection();
-  }
-
   _unsubscribe(properties = true) {
     if (this._request) {
       this._request.header('x-etag', false);
@@ -506,7 +503,6 @@ export default class Observable extends EventEmitter {
       this._total = null;
     }
 
-    this._unbindConnection();
     this._destroy();
   }
 
