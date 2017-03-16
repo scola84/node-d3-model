@@ -18,20 +18,16 @@ export default class Observable extends EventEmitter {
     this._keys = [];
 
     this._connection = null;
-    this._storage = null;
-    this._key = () => this._path;
-    this._serialize = (o) => o;
-    this._deserialize = (o) => o;
 
-    this._auth = null;
+    this._auth = false;
     this._mode = 'object';
     this._state = 'idle';
 
     this._local = {};
     this._remote = {};
 
-    this._total = 0;
     this._etag = null;
+    this._total = 0;
 
     this._subscribed = false;
     this._selected = false;
@@ -52,11 +48,6 @@ export default class Observable extends EventEmitter {
     this._destroy();
 
     this._connection = null;
-    this._storage = null;
-
-    this._serialize = null;
-    this._unserialize = null;
-
     this._local = {};
     this._remote = {};
   }
@@ -64,6 +55,10 @@ export default class Observable extends EventEmitter {
   path(value = null) {
     if (value === null) {
       return this._path;
+    }
+
+    if (value === true) {
+      return this._parser(this._local);
     }
 
     this._path = value;
@@ -82,35 +77,6 @@ export default class Observable extends EventEmitter {
     this._connection = value;
     this._bindConnection();
 
-    return this;
-  }
-
-  storage(value = null, key = null) {
-    if (value === null) {
-      return this._storage;
-    }
-
-    this._storage = value;
-    this._key = key || this._key;
-
-    return this;
-  }
-
-  serialize(value = null) {
-    if (value === null) {
-      return this._serialize;
-    }
-
-    this._serialize = value;
-    return this;
-  }
-
-  deserialize(value = null) {
-    if (value === null) {
-      return this._deserialize;
-    }
-
-    this._deserialize = value;
     return this;
   }
 
@@ -159,46 +125,34 @@ export default class Observable extends EventEmitter {
     return this;
   }
 
+  etag(value = null) {
+    if (value === null) {
+      return this._etag;
+    }
+
+    this._etag = value;
+    return this;
+  }
+
+  total(value = null) {
+    if (value === null) {
+      return this._total;
+    }
+
+    this._total = value;
+    return this;
+  }
+
+  connected() {
+    return this._connection.writable();
+  }
+
   diff() {
     return odiff(this._remote, this._local);
   }
 
   state() {
     return this._state;
-  }
-
-  total() {
-    return this._total;
-  }
-
-  load(callback) {
-    const syncObject = this._storage
-      .getItem(this._key(), (error, object) => {
-        this._load(error, object, callback);
-      });
-
-    if (!callback) {
-      this._load(null, syncObject);
-    }
-
-    return this;
-  }
-
-  save(callback) {
-    const object = {
-      local: this._serialize(merge({}, this._local), 'local'),
-      remote: this._serialize(merge({}, this._local), 'remote')
-    };
-
-    this._storage.setItem(this._key(),
-      JSON.stringify(object), callback);
-
-    return this;
-  }
-
-  remove(callback) {
-    this._storage.removeItem(this._key(), callback);
-    return this;
   }
 
   get(name) {
@@ -250,13 +204,9 @@ export default class Observable extends EventEmitter {
     return this;
   }
 
-  flush(storage = false) {
+  flush() {
     this._local = {};
     this._remote = {};
-
-    if (storage === true && this._storage) {
-      this.remove();
-    }
 
     return this;
   }
@@ -278,12 +228,12 @@ export default class Observable extends EventEmitter {
   select() {
     this._selected = true;
 
-    if (!this._connection.writable()) {
+    if (!this.connected()) {
       this.emit('error', new ScolaError('500 invalid_socket'));
       return this;
     }
 
-    if (this._auth && !this._connection.auth()) {
+    if (this._auth === true && !this._connection.auth()) {
       this.emit('error', new ScolaError('401 invalid_user'));
       return this;
     }
@@ -324,7 +274,7 @@ export default class Observable extends EventEmitter {
       return this;
     }
 
-    if (!this._connection.writable()) {
+    if (!this.connected()) {
       this.emit('error', new ScolaError('500 invalid_socket'));
       return this;
     }
@@ -358,7 +308,7 @@ export default class Observable extends EventEmitter {
       return this;
     }
 
-    if (!this._connection.writable()) {
+    if (!this.connected()) {
       this.emit('error', new ScolaError('500 invalid_socket'));
       return this;
     }
@@ -392,7 +342,7 @@ export default class Observable extends EventEmitter {
       return this;
     }
 
-    if (!this._connection.writable()) {
+    if (!this.connected()) {
       this.emit('error', new ScolaError('500 invalid_socket'));
       return this;
     }
@@ -472,25 +422,6 @@ export default class Observable extends EventEmitter {
       this._response.removeListener('end', this._handleEnd);
       this._response.removeListener('error', this._handleError);
     }
-  }
-
-  _load(error, object, callback = () => {}) {
-    if (error) {
-      callback(error);
-      return;
-    }
-
-    if (!object) {
-      callback();
-      return;
-    }
-
-    object = JSON.parse(object);
-
-    this._local = this._deserialize(object.local, 'local');
-    this._remote = this._deserialize(object.local, 'remote');
-
-    callback();
   }
 
   _unsubscribe(properties = true) {
@@ -584,10 +515,6 @@ export default class Observable extends EventEmitter {
       return;
     }
 
-    if (this._response.status() === 304) {
-      return;
-    }
-
     if (this._response.header('x-publish') === 1) {
       this.emit('publish', data);
       return;
@@ -601,8 +528,11 @@ export default class Observable extends EventEmitter {
       this._total = Number(this._response.header('x-total'));
     }
 
-    this.remote(data);
-    this.emit('select', data);
+    if (this._response.status() === 200) {
+      this.remote(data);
+    }
+
+    this.emit('select', this._remote, this._total, this._etag);
   }
 
   _error(error) {
@@ -656,8 +586,8 @@ export default class Observable extends EventEmitter {
   }
 
   _parse() {
-    const local = this._serialize(merge({}, this._local), 'parse');
-    const path = this._parser(local);
+    const local = merge({}, this._local);
+    const path = this.path(true);
 
     this._keys.forEach((key) => {
       delete local[key.name];
