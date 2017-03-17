@@ -481,6 +481,11 @@ export default class Observable extends EventEmitter {
       this._total = Number(this._response.header('x-total'));
     }
 
+    if (this._response.status() === 304) {
+      this.emit('unmodified');
+      return;
+    }
+
     if (this._response.status() === 200) {
       this.remote(data);
     }
