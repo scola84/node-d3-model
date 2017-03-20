@@ -482,7 +482,7 @@ export default class Observable extends EventEmitter {
     }
 
     if (this._response.status() === 304) {
-      this.emit('unmodified');
+      this.emit('etag');
       return;
     }
 
