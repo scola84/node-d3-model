@@ -140,6 +140,33 @@ export default class Observable extends EventEmitter {
     return this._state;
   }
 
+  add(name, value, action = true) {
+    const values = this.get(name) || [];
+
+    if (action === true) {
+      values.push(value);
+    } else if (action === false) {
+      values.splice(values.indexOf(value), 1);
+    }
+
+    return this.set(name, values.sort());
+  }
+
+  assign(values, scope) {
+    Object.keys(values).forEach((key) => {
+      this.set(key, values[key], scope);
+    });
+
+    return this;
+  }
+
+  extract(name) {
+    const value = this.get(name);
+    this.unset(name);
+
+    return value;
+  }
+
   get(name) {
     return get(this._local, name);
   }
@@ -166,26 +193,6 @@ export default class Observable extends EventEmitter {
 
   unset(name) {
     unset(this._local, name);
-    return;
-  }
-
-  add(name, value, action = true) {
-    const values = this.get(name) || [];
-
-    if (action === true) {
-      values.push(value);
-    } else if (action === false) {
-      values.splice(values.indexOf(value), 1);
-    }
-
-    return this.set(name, values.sort());
-  }
-
-  assign(values, scope) {
-    Object.keys(values).forEach((key) => {
-      this.set(key, values[key], scope);
-    });
-
     return this;
   }
 
