@@ -1,5 +1,6 @@
 import Observable from './src/observable';
 import Observer from './src/observer';
+import State from './src/state';
 
 const models = {};
 
@@ -18,8 +19,14 @@ function model(path, singleton = false) {
   return instance;
 }
 
+function state() {
+  return new State();
+}
+
 export {
   Observable,
   Observer,
-  model
+  State,
+  model,
+  state
 };
