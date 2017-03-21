@@ -106,7 +106,7 @@ export default class Observable extends EventEmitter {
       this.local(value);
     }
 
-    this.emit('select', this._remote, this._total, this._etag);
+    this.emit('select', this._remote, this._etag, this._total);
     return this;
   }
 
@@ -116,6 +116,8 @@ export default class Observable extends EventEmitter {
     }
 
     this._etag = value;
+    this.emit('etag', value);
+
     return this;
   }
 
@@ -125,6 +127,8 @@ export default class Observable extends EventEmitter {
     }
 
     this._total = value;
+    this.emit('total', value);
+
     return this;
   }
 
@@ -481,15 +485,15 @@ export default class Observable extends EventEmitter {
     }
 
     if (this._response.header('x-etag')) {
-      this._etag = this._response.header('x-etag');
+      this.etag(this._response.header('x-etag'));
     }
 
     if (this._response.header('x-total')) {
-      this._total = Number(this._response.header('x-total'));
+      this.total(Number(this._response.header('x-total')));
     }
 
     if (this._response.status() === 304) {
-      this.emit('etag');
+      this.emit('cache');
       return;
     }
 
