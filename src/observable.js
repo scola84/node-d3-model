@@ -18,6 +18,7 @@ export default class Observable extends EventEmitter {
     this._keys = [];
 
     this._connection = null;
+    this._serialize = (v) => v;
 
     this._mode = 'object';
     this._state = 'idle';
@@ -73,6 +74,15 @@ export default class Observable extends EventEmitter {
     return this;
   }
 
+  serialize(value = null) {
+    if (value === null) {
+      return this._serialize;
+    }
+
+    this._serialize = value;
+    return this;
+  }
+
   mode(value = null) {
     if (value === null) {
       return this._mode;
@@ -86,7 +96,7 @@ export default class Observable extends EventEmitter {
 
   local(value = null) {
     if (value === null) {
-      return this._local;
+      return merge({}, this._local);
     }
 
     this._local = {};
@@ -200,10 +210,11 @@ export default class Observable extends EventEmitter {
     return this;
   }
 
-  flush() {
+  clear() {
     this._local = {};
     this._remote = {};
 
+    this.emit('clear');
     return this;
   }
 
@@ -552,7 +563,7 @@ export default class Observable extends EventEmitter {
   }
 
   _parse() {
-    const local = merge({}, this._local);
+    const local = this._serialize(merge({}, this._local));
     const path = this.path(true);
 
     this._keys.forEach((key) => {
