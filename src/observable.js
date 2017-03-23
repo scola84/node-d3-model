@@ -2,9 +2,9 @@ import EventEmitter from 'events';
 import get from 'lodash-es/get';
 import has from 'lodash-es/has';
 import isEqual from 'lodash-es/isEqual';
+import isPlainObject from 'lodash-es/isPlainObject';
 import merge from 'lodash-es/merge';
 import set from 'lodash-es/set';
-import unset from 'lodash-es/unset';
 import odiff from 'odiff';
 import pathToRegexp from 'path-to-regexp';
 import { ScolaError } from '@scola/error';
@@ -166,19 +166,16 @@ export default class Observable extends EventEmitter {
     return this.set(name, values.sort());
   }
 
-  assign(values, scope) {
+  assign(values, scope, prefix = '') {
     Object.keys(values).forEach((key) => {
-      this.set(key, values[key], scope);
+      if (isPlainObject(values[key])) {
+        this.assign(values[key], scope, prefix + key + '.');
+      } else {
+        this.set(prefix + key, values[key], scope);
+      }
     });
 
     return this;
-  }
-
-  extract(name) {
-    const value = this.get(name);
-    this.unset(name);
-
-    return value;
   }
 
   get(name) {
@@ -202,11 +199,6 @@ export default class Observable extends EventEmitter {
       scope
     });
 
-    return this;
-  }
-
-  unset(name) {
-    unset(this._local, name);
     return this;
   }
 
@@ -499,7 +491,7 @@ export default class Observable extends EventEmitter {
       this.etag(this._response.header('x-etag'));
     }
 
-    if (this._response.header('x-total')) {
+    if (typeof this._response.header('x-total') !== 'undefined') {
       this.total(Number(this._response.header('x-total')));
     }
 
