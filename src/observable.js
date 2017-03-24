@@ -99,9 +99,7 @@ export default class Observable extends EventEmitter {
       return merge({}, this._local);
     }
 
-    this._local = {};
-    this.assign(value);
-
+    this._local = value;
     return this;
   }
 
@@ -113,7 +111,7 @@ export default class Observable extends EventEmitter {
     this._remote = value;
 
     if (this._mode === 'object') {
-      this.local(value);
+      this.assign(value);
     }
 
     this.emit('select', this._remote, this._etag, this._total);
@@ -166,12 +164,12 @@ export default class Observable extends EventEmitter {
     return this.set(name, values.sort());
   }
 
-  assign(values, scope, prefix = '') {
+  assign(values, changed, prefix = '') {
     Object.keys(values).forEach((key) => {
       if (isPlainObject(values[key])) {
-        this.assign(values[key], scope, prefix + key + '.');
+        this.assign(values[key], changed, prefix + key + '.');
       } else {
-        this.set(prefix + key, values[key], scope);
+        this.set(prefix + key, values[key], changed);
       }
     });
 
@@ -186,17 +184,18 @@ export default class Observable extends EventEmitter {
     return has(this._local, name);
   }
 
-  set(name, value, scope) {
+  set(name, value, changed = null) {
     const old = this.get(name);
-    const changed = !isEqual(old, value);
+
+    changed = changed === null ?
+      !isEqual(old, value) : changed;
 
     set(this._local, name, value);
 
     this.emit('set', {
       changed,
       name,
-      value,
-      scope
+      value
     });
 
     return this;
@@ -467,7 +466,6 @@ export default class Observable extends EventEmitter {
         return;
       }
 
-      this.flush(true);
       this.emit('delete');
     });
   }

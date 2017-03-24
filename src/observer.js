@@ -34,8 +34,8 @@ export default class Observer extends EventEmitter {
     this._bindModel();
 
     this._set({
+      changed: false,
       name: this._name,
-      scope: 'model',
       value: value.get(this._name)
     });
 
