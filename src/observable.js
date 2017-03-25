@@ -190,6 +190,10 @@ export default class Observable extends EventEmitter {
     changed = changed === null ?
       !isEqual(old, value) : changed;
 
+    if (typeof value === 'function') {
+      value = value(old, changed);
+    }
+
     set(this._local, name, value);
 
     this.emit('set', {
