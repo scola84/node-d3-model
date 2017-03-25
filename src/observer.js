@@ -33,10 +33,12 @@ export default class Observer extends EventEmitter {
     this._model = value;
     this._bindModel();
 
-    this._set({
-      changed: false,
-      name: this._name,
-      value: value.get(this._name)
+    setTimeout(() => {
+      this._set({
+        changed: false,
+        name: this._name,
+        value: value.get(this._name)
+      });
     });
 
     return this;
