@@ -510,7 +510,6 @@ export default class Observable extends EventEmitter {
   _error(data) {
     this.emit('error', new ScolaError(data));
     this._destroy();
-    this._total = 0;
   }
 
   _destroy() {
