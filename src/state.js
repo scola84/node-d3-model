@@ -32,7 +32,7 @@ export default class State {
     let passed = 0;
 
     this._conditions.forEach((check, name) => {
-      passed += check(this._values[name]) ? 1 : 0;
+      passed += Number(check(this._values[name]));
     });
 
     if (passed === this._conditions.size) {

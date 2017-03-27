@@ -26,7 +26,7 @@ export default class Observable extends EventEmitter {
     this._local = {};
     this._remote = {};
 
-    this._etag = null;
+    this._etag = '';
     this._total = 0;
 
     this._subscribed = false;
@@ -141,7 +141,7 @@ export default class Observable extends EventEmitter {
   }
 
   connected() {
-    return this._connection.writable();
+    return this._connection.connected();
   }
 
   diff() {
@@ -166,7 +166,7 @@ export default class Observable extends EventEmitter {
 
   assign(values, changed, prefix = '') {
     Object.keys(values).forEach((key) => {
-      if (isPlainObject(values[key])) {
+      if (isPlainObject(values[key]) === true) {
         this.assign(values[key], changed, prefix + key + '.');
       } else {
         this.set(prefix + key, values[key], changed);
@@ -228,7 +228,7 @@ export default class Observable extends EventEmitter {
   }
 
   select() {
-    if (!this.connected()) {
+    if (this.connected() === false) {
       this.emit('error', new ScolaError('500 invalid_socket'));
       return this;
     }
@@ -248,7 +248,7 @@ export default class Observable extends EventEmitter {
       this._request.query(local);
     }
 
-    if (this._etag) {
+    if (this._etag.length > 0) {
       this._request.header('x-etag', this._etag);
     }
 
@@ -269,7 +269,7 @@ export default class Observable extends EventEmitter {
       return this;
     }
 
-    if (!this.connected()) {
+    if (this.connected() === false) {
       this.emit('error', new ScolaError('500 invalid_socket'));
       return this;
     }
@@ -303,7 +303,7 @@ export default class Observable extends EventEmitter {
       return this;
     }
 
-    if (!this.connected()) {
+    if (this.connected() === false) {
       this.emit('error', new ScolaError('500 invalid_socket'));
       return this;
     }
@@ -337,7 +337,7 @@ export default class Observable extends EventEmitter {
       return this;
     }
 
-    if (!this.connected()) {
+    if (this.connected() === false) {
       this.emit('error', new ScolaError('500 invalid_socket'));
       return this;
     }
@@ -402,15 +402,15 @@ export default class Observable extends EventEmitter {
     }
 
     if (properties === true) {
-      this._etag = null;
-      this._total = null;
+      this._etag = '';
+      this._total = 0;
     }
 
     this._destroy();
   }
 
   _select(error, response) {
-    if (error) {
+    if (error instanceof Error === true) {
       this.emit('error', error);
       this._destroy();
       return;
@@ -423,7 +423,7 @@ export default class Observable extends EventEmitter {
   _insert(error, response) {
     this._state = 'idle';
 
-    if (error) {
+    if (error instanceof Error === true) {
       this.emit('error', error);
       return;
     }
@@ -441,7 +441,7 @@ export default class Observable extends EventEmitter {
   _update(error, response) {
     this._state = 'idle';
 
-    if (error) {
+    if (error instanceof Error === true) {
       this.emit('error', error);
       return;
     }
@@ -459,7 +459,7 @@ export default class Observable extends EventEmitter {
   _delete(error, response) {
     this._state = 'idle';
 
-    if (error) {
+    if (error instanceof Error === true) {
       this.emit('error', error);
       return;
     }
@@ -475,7 +475,7 @@ export default class Observable extends EventEmitter {
   }
 
   _data(data) {
-    if (!this._response) {
+    if (this._response === null) {
       return;
     }
 
@@ -489,11 +489,11 @@ export default class Observable extends EventEmitter {
       return;
     }
 
-    if (this._response.header('x-etag')) {
-      this.etag(this._response.header('x-etag'));
+    if (this._response.header('x-etag') !== null) {
+      this.etag(String(this._response.header('x-etag')));
     }
 
-    if (typeof this._response.header('x-total') !== 'undefined') {
+    if (this._response.header('x-total') !== null) {
       this.total(Number(this._response.header('x-total')));
     }
 
@@ -545,7 +545,7 @@ export default class Observable extends EventEmitter {
 
       if (chunks.length === 1) {
         data = chunks[0];
-      } else if (Buffer.isBuffer(chunks[0])) {
+      } else if (Buffer.isBuffer(chunks[0]) === true) {
         data = Buffer.concat(chunks);
       } else {
         data = chunks.join('');
