@@ -89,8 +89,6 @@ export default class Observable extends EventEmitter {
     }
 
     this._mode = value;
-    this._remote = value === 'list' ? [] : {};
-
     return this;
   }
 
