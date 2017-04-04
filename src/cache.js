@@ -257,7 +257,8 @@ export default class Cache {
     }
 
     const local = this._serialize(this._model.local());
-    const total = this._model.total();
+    const total = this._remote === true ?
+      this._model.total() : 0;
 
     this._setItem(this._modelKey(), {
       local,
