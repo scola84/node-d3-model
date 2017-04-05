@@ -251,11 +251,7 @@ export default class Cache {
     });
   }
 
-  _set(setEvent) {
-    if (setEvent.changed === false) {
-      return;
-    }
-
+  _set() {
     const value = {
       local: this._serialize(this._model.local())
     };
