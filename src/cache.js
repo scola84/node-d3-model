@@ -256,14 +256,15 @@ export default class Cache {
       return;
     }
 
-    const local = this._serialize(this._model.local());
-    const total = this._remote === true ?
-      this._model.total() : 0;
+    const value = {
+      local: this._serialize(this._model.local())
+    };
 
-    this._setItem(this._modelKey(), {
-      local,
-      total
-    });
+    if (this._remote === true) {
+      value.total = this._model.total();
+    }
+
+    this._setItem(this._modelKey(), value);
   }
 
   _total() {
