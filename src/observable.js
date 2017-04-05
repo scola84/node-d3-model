@@ -2,7 +2,6 @@ import EventEmitter from 'events';
 import get from 'lodash-es/get';
 import has from 'lodash-es/has';
 import isEqual from 'lodash-es/isEqual';
-import isPlainObject from 'lodash-es/isPlainObject';
 import merge from 'lodash-es/merge';
 import set from 'lodash-es/set';
 import odiff from 'odiff';
@@ -30,6 +29,7 @@ export default class Observable extends EventEmitter {
     this._total = 0;
 
     this._subscribed = false;
+    this._source = null;
 
     this._request = null;
     this._response = null;
@@ -38,10 +38,12 @@ export default class Observable extends EventEmitter {
     this._handleEnd = () => this._destroy();
     this._handleError = (e) => this._select(e);
     this._handleResponse = (r) => this._select(null, r);
+    this._handleSet = (e) => this._set(e);
   }
 
   destroy() {
     this._destroy();
+    this._unbindSource();
 
     this._connection = null;
     this._local = {};
@@ -138,6 +140,24 @@ export default class Observable extends EventEmitter {
     return this;
   }
 
+  source(value = null) {
+    if (value === null) {
+      return this._source;
+    }
+
+    if (value === false) {
+      this._unbindSource();
+      this._source = null;
+
+      return this;
+    }
+
+    this._source = value;
+    this._bindSource();
+
+    return this;
+  }
+
   connected() {
     return this._connection.connected();
   }
@@ -162,13 +182,9 @@ export default class Observable extends EventEmitter {
     return this.set(name, values.sort());
   }
 
-  assign(values, changed, prefix = '') {
+  assign(values, changed) {
     Object.keys(values).forEach((key) => {
-      if (isPlainObject(values[key]) === true) {
-        this.assign(values[key], changed, prefix + key + '.');
-      } else {
-        this.set(prefix + key, values[key], changed);
-      }
+      this.set(key, values[key], changed);
     });
 
     return this;
@@ -363,6 +379,18 @@ export default class Observable extends EventEmitter {
     return this;
   }
 
+  _bindSource() {
+    if (this._source) {
+      this._source.on('set', this._handleSet);
+    }
+  }
+
+  _unbindSource() {
+    if (this._source) {
+      this._source.removeListener('set', this._handleSet);
+    }
+  }
+
   _bindRequest() {
     if (this._request) {
       this._request.on('error', this._handleError);
@@ -508,6 +536,10 @@ export default class Observable extends EventEmitter {
   _error(data) {
     this.emit('error', new ScolaError(data));
     this._destroy();
+  }
+
+  _set(event) {
+    this.set(event.name, event.value);
   }
 
   _destroy() {
