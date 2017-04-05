@@ -29,10 +29,12 @@ export default class State {
   }
 
   _check() {
+    let checked = null;
     let passed = 0;
 
     this._conditions.forEach((check, name) => {
-      passed += Number(check(this._values[name]));
+      checked = check(this._values[name], name in this._values);
+      passed += Number(checked);
     });
 
     if (passed === this._conditions.size) {
