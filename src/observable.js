@@ -539,7 +539,7 @@ export default class Observable extends EventEmitter {
   }
 
   _set(event) {
-    this.set(event.name, event.value);
+    this.set(event.name, event.value, event.changed);
   }
 
   _destroy() {
