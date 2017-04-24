@@ -109,11 +109,12 @@ export default class Cache {
     return this;
   }
 
-  load() {
+  load(callback = () => {}) {
     const key = this._modelKey();
 
     const syncValue = this._getItem(key, (error, value) => {
       this._loadGet(error, value);
+      callback();
     });
 
     if (syncValue instanceof Promise) {
@@ -121,15 +122,18 @@ export default class Cache {
     }
 
     this._loadGet(null, syncValue);
+    callback();
+
     return this;
   }
 
-  select() {
+  select(callback = () => {}) {
     const key = this._model.mode() === 'list' ?
       this._listKey() : this._objectKey();
 
     const syncValue = this._getItem(key, (error, value) => {
       this._selectGet(error, value);
+      callback();
     });
 
     if (syncValue instanceof Promise) {
@@ -137,6 +141,8 @@ export default class Cache {
     }
 
     this._selectGet(null, syncValue);
+    callback();
+
     return this;
   }
 
@@ -297,8 +303,8 @@ export default class Cache {
 
   _addKeyGet(error, value, indexKey, key) {
     if (error instanceof Error === true) {
-      this._model.emit('error', new ScolaError('500 invalid_data ' +
-        error.message));
+      error = new ScolaError('500 invalid_data ' + error.message);
+      this._model.emit('error', error);
       return;
     }
 
@@ -328,8 +334,8 @@ export default class Cache {
 
   _deleteKeyGet(error, value, indexKey, key) {
     if (error instanceof Error === true) {
-      this._model.emit('error', new ScolaError('500 invalid_data ' +
-        error.message));
+      error = new ScolaError('500 invalid_data ' + error.message);
+      this._model.emit('error', error);
       return;
     }
 
@@ -345,8 +351,8 @@ export default class Cache {
 
   _cacheGet(error, value = null) {
     if (error instanceof Error === true) {
-      this._model.emit('error',
-        new ScolaError('500 invalid_data ' + error.message));
+      error = new ScolaError('500 invalid_data ' + error.message);
+      this._model.emit('error', error);
       return;
     }
 
@@ -357,8 +363,8 @@ export default class Cache {
 
   _loadGet(error, value = null) {
     if (error instanceof Error === true) {
-      this._model.emit('error', new ScolaError('500 invalid_data ' +
-        error.message));
+      error = new ScolaError('500 invalid_data ' + error.message);
+      this._model.emit('error', error);
       return;
     }
 
@@ -375,8 +381,8 @@ export default class Cache {
 
   _selectGet(error, value = null) {
     if (error instanceof Error === true) {
-      this._model.emit('error',
-        new ScolaError('500 invalid_data ' + error.message));
+      error = new ScolaError('500 invalid_data ' + error.message);
+      this._model.emit('error', error);
       return;
     }
 
@@ -387,8 +393,8 @@ export default class Cache {
     } else if (value !== null) {
       this._model.remote(value.data);
     } else {
-      this._model.emit('error',
-        new ScolaError('500 invalid_data Cache is empty'));
+      error = new ScolaError('500 invalid_data ' + error.message);
+      this._model.emit('error', error);
     }
   }
 
