@@ -182,7 +182,7 @@ export default class Observable extends EventEmitter {
     return this.set(name, values.sort());
   }
 
-  assign(values, changed) {
+  assign(values = {}, changed = null) {
     Object.keys(values).forEach((key) => {
       this.set(key, values[key], changed);
     });
