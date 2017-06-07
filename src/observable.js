@@ -124,8 +124,6 @@ export default class Observable extends EventEmitter {
     }
 
     this._etag = value;
-    this.emit('etag', value);
-
     return this;
   }
 
@@ -516,7 +514,7 @@ export default class Observable extends EventEmitter {
     }
 
     if (this._response.header('x-etag') !== null) {
-      this.etag(String(this._response.header('x-etag')));
+      this.emit('etag', String(this._response.header('x-etag')));
     }
 
     if (this._response.header('x-total') !== null) {
