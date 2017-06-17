@@ -7,6 +7,7 @@ import set from 'lodash-es/set';
 import odiff from 'odiff';
 import pathToRegexp from 'path-to-regexp';
 import { ScolaError } from '@scola/error';
+import State from './state';
 
 export default class Observable extends EventEmitter {
   constructor() {
@@ -17,10 +18,11 @@ export default class Observable extends EventEmitter {
     this._keys = [];
 
     this._connection = null;
+
+    this._deserialize = (v) => v;
     this._serialize = (v) => v;
 
     this._mode = 'object';
-    this._state = 'idle';
 
     this._local = {};
     this._remote = {};
@@ -28,8 +30,11 @@ export default class Observable extends EventEmitter {
     this._etag = '';
     this._total = 0;
 
+    this._locked = false;
     this._subscribed = false;
+
     this._source = null;
+    this._state = null;
 
     this._request = null;
     this._response = null;
@@ -76,6 +81,15 @@ export default class Observable extends EventEmitter {
     return this;
   }
 
+  deserialize(value = null) {
+    if (value === null) {
+      return this._deserialize;
+    }
+
+    this._deserialize = value;
+    return this;
+  }
+
   serialize(value = null) {
     if (value === null) {
       return this._serialize;
@@ -111,7 +125,7 @@ export default class Observable extends EventEmitter {
     this._remote = value;
 
     if (this._mode === 'object') {
-      this.assign(value);
+      this.assign(this._remote);
     }
 
     this.emit('select', this._remote, this._etag, this._total);
@@ -165,6 +179,10 @@ export default class Observable extends EventEmitter {
   }
 
   state() {
+    if (this._state === null) {
+      this._state = new State();
+    }
+
     return this._state;
   }
 
@@ -194,6 +212,10 @@ export default class Observable extends EventEmitter {
 
   has(name) {
     return has(this._local, name);
+  }
+
+  reset() {
+    return this.remote(this._remote);
   }
 
   set(name, value, changed = null) {
@@ -231,12 +253,21 @@ export default class Observable extends EventEmitter {
     }
 
     this._subscribed = action;
+    return this;
+  }
 
-    if (action === false) {
-      this._unsubscribe();
+  unsubscribe(properties = true) {
+    if (this._request) {
+      this._request.header('x-etag', false);
+      this._request.end();
     }
 
-    return this;
+    if (properties === true) {
+      this._etag = '';
+      this._total = 0;
+    }
+
+    this._destroy();
   }
 
   select() {
@@ -246,7 +277,7 @@ export default class Observable extends EventEmitter {
     }
 
     if (this._subscribed === true) {
-      this._unsubscribe(false);
+      this.unsubscribe(false);
     }
 
     const [path, local] = this._parse();
@@ -276,7 +307,7 @@ export default class Observable extends EventEmitter {
   }
 
   insert() {
-    if (this._state === 'busy') {
+    if (this._locked === true) {
       this.emit('error', new ScolaError('500 invalid_state'));
       return this;
     }
@@ -286,7 +317,7 @@ export default class Observable extends EventEmitter {
       return this;
     }
 
-    this._state = 'busy';
+    this._locked = true;
 
     const [path, local] = this._parse();
 
@@ -310,7 +341,7 @@ export default class Observable extends EventEmitter {
   }
 
   update() {
-    if (this._state === 'busy') {
+    if (this._locked === true) {
       this.emit('error', new ScolaError('500 invalid_state'));
       return this;
     }
@@ -320,7 +351,7 @@ export default class Observable extends EventEmitter {
       return this;
     }
 
-    this._state = 'busy';
+    this._locked = true;
 
     const [path, local] = this._parse();
 
@@ -344,7 +375,7 @@ export default class Observable extends EventEmitter {
   }
 
   delete() {
-    if (this._state === 'busy') {
+    if (this._locked === true) {
       this.emit('error', new ScolaError('500 invalid_state'));
       return this;
     }
@@ -354,7 +385,7 @@ export default class Observable extends EventEmitter {
       return this;
     }
 
-    this._state = 'busy';
+    this._locked = true;
 
     const [path] = this._parse();
 
@@ -419,20 +450,6 @@ export default class Observable extends EventEmitter {
     }
   }
 
-  _unsubscribe(properties = true) {
-    if (this._request) {
-      this._request.header('x-etag', false);
-      this._request.end();
-    }
-
-    if (properties === true) {
-      this._etag = '';
-      this._total = 0;
-    }
-
-    this._destroy();
-  }
-
   _select(error, response) {
     if (error instanceof Error === true) {
       this.emit('error', error);
@@ -445,7 +462,7 @@ export default class Observable extends EventEmitter {
   }
 
   _insert(error, response) {
-    this._state = 'idle';
+    this._locked = false;
 
     if (error instanceof Error === true) {
       this.emit('error', error);
@@ -463,7 +480,7 @@ export default class Observable extends EventEmitter {
   }
 
   _update(error, response) {
-    this._state = 'idle';
+    this._locked = false;
 
     if (error instanceof Error === true) {
       this.emit('error', error);
@@ -481,7 +498,7 @@ export default class Observable extends EventEmitter {
   }
 
   _delete(error, response) {
-    this._state = 'idle';
+    this._locked = false;
 
     if (error instanceof Error === true) {
       this.emit('error', error);
@@ -527,7 +544,7 @@ export default class Observable extends EventEmitter {
     }
 
     if (this._response.status() === 200) {
-      this.remote(data);
+      this.remote(this._deserialize(data));
     }
   }
 
