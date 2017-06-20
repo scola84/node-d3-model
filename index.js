@@ -10,18 +10,19 @@ function cache() {
 }
 
 function model(path, singleton = false) {
+  if (singleton === false) {
+    return new Observable()
+      .path(path);
+  }
+
   if (models[path] instanceof Observable === true) {
     return models[path];
   }
 
-  const instance = new Observable()
+  models[path] = new Observable()
     .path(path);
 
-  if (singleton === true) {
-    models[path] = instance;
-  }
-
-  return instance;
+  return models[path];
 }
 
 function state() {
