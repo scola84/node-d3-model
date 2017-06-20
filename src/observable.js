@@ -132,6 +132,10 @@ export default class Observable extends EventEmitter {
     return this;
   }
 
+  values() {
+    return this._serialize(this.local());
+  }
+
   etag(value = null) {
     if (value === null) {
       return this._etag;
