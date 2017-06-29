@@ -42,6 +42,14 @@ export default class State {
     return this;
   }
 
+  equal(to) {
+    this._conditions.set(this._last, (value) => {
+      return value === to;
+    });
+
+    return this;
+  }
+
   undefined() {
     this._conditions.set(this._last, (value, set) => {
       return typeof value === 'undefined' && set === true;
