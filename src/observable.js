@@ -4,6 +4,7 @@ import has from 'lodash-es/has';
 import isEqual from 'lodash-es/isEqual';
 import merge from 'lodash-es/merge';
 import set from 'lodash-es/set';
+import unset from 'lodash-es/unset';
 import odiff from 'odiff';
 import pathToRegexp from 'path-to-regexp';
 import { ScolaError } from '@scola/error';
@@ -241,6 +242,13 @@ export default class Observable extends EventEmitter {
     });
 
     return this;
+  }
+
+  unset(name) {
+    const old = this.get(name);
+    unset(this._local, name);
+
+    return old;
   }
 
   clear() {
