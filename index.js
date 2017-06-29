@@ -1,9 +1,14 @@
+import Action from './src/action';
 import Cache from './src/cache';
 import Observable from './src/observable';
 import Observer from './src/observer';
 import State from './src/state';
 
 const models = {};
+
+function action() {
+  return new Action();
+}
 
 function cache() {
   return new Cache();
@@ -30,10 +35,12 @@ function state() {
 }
 
 export {
+  Action,
   Cache,
   Observable,
   Observer,
   State,
+  action,
   cache,
   model,
   state
