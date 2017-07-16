@@ -211,8 +211,10 @@ export default class Observable extends EventEmitter {
     return this;
   }
 
-  get(name) {
-    return get(this._local, name);
+  get(name = null) {
+    return name === null ?
+      this._local :
+      get(this._local, name);
   }
 
   has(name) {
@@ -220,10 +222,19 @@ export default class Observable extends EventEmitter {
   }
 
   reset() {
-    return this.remote(this._remote);
+    Object.keys(this._local).forEach((key) => {
+      if (typeof this._remote[key] === 'undefined') {
+        this.set(key, null);
+      }
+    });
+
+    this._local = {};
+    this.remote(this._remote);
+
+    return this;
   }
 
-  set(name, value, changed = null) {
+  set(name = null, value = null, changed = null) {
     const old = this.get(name);
 
     changed = changed === null ?
@@ -233,7 +244,11 @@ export default class Observable extends EventEmitter {
       value = value(old, changed);
     }
 
-    set(this._local, name, value);
+    if (name === null) {
+      this.assign(value, false);
+    } else {
+      set(this._local, name, value);
+    }
 
     this.emit('set', {
       changed,
