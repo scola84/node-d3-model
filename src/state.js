@@ -29,6 +29,11 @@ export default class State {
     return this;
   }
 
+  clear() {
+    this._values = {};
+    return this;
+  }
+
   custom(value) {
     this._conditions.set(this._last, value);
     return this;
