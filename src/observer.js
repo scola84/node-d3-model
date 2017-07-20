@@ -22,6 +22,8 @@ export default class Observer extends EventEmitter {
     }
 
     this._name = value;
+    this._preset();
+
     return this;
   }
 
@@ -51,12 +53,7 @@ export default class Observer extends EventEmitter {
     }
 
     this._value = itemValue;
-
-    this._set({
-      changed: false,
-      name: this._name,
-      value: this._model.get(this._name)
-    });
+    this._preset();
 
     return this;
   }
@@ -73,6 +70,18 @@ export default class Observer extends EventEmitter {
       this._model.setMaxListeners(this._model.getMaxListeners() - 1);
       this._model.removeListener('set', this._handleSet);
     }
+  }
+
+  _preset() {
+    if (this._model === null) {
+      return;
+    }
+
+    this._set({
+      changed: false,
+      name: this._name,
+      value: this._model.get(this._name)
+    });
   }
 
   _set() {}

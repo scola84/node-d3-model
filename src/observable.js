@@ -34,7 +34,6 @@ export default class Observable extends EventEmitter {
     this._locked = false;
     this._subscribed = false;
 
-    this._source = null;
     this._state = null;
 
     this._request = null;
@@ -49,7 +48,6 @@ export default class Observable extends EventEmitter {
 
   destroy() {
     this._destroy();
-    this._unbindSource();
 
     this._connection = null;
     this._local = {};
@@ -157,24 +155,6 @@ export default class Observable extends EventEmitter {
     return this;
   }
 
-  source(value = null) {
-    if (value === null) {
-      return this._source;
-    }
-
-    if (value === false) {
-      this._unbindSource();
-      this._source = null;
-
-      return this;
-    }
-
-    this._source = value;
-    this._bindSource();
-
-    return this;
-  }
-
   connected() {
     return this._connection.connected();
   }
@@ -222,14 +202,8 @@ export default class Observable extends EventEmitter {
   }
 
   reset() {
-    Object.keys(this._local).forEach((key) => {
-      if (typeof this._remote[key] === 'undefined') {
-        this.set(key, null);
-      }
-    });
-
     this._local = {};
-    this.remote(this._remote);
+    this.assign(this._remote, false);
 
     return this;
   }
@@ -299,7 +273,7 @@ export default class Observable extends EventEmitter {
 
   select() {
     if (this.connected() === false) {
-      this.emit('error', new ScolaError('500 invalid_socket'));
+      this._error('500 invalid_socket');
       return this;
     }
 
@@ -335,12 +309,12 @@ export default class Observable extends EventEmitter {
 
   insert() {
     if (this._locked === true) {
-      this.emit('error', new ScolaError('500 invalid_state'));
+      this._error('500 invalid_state');
       return this;
     }
 
     if (this.connected() === false) {
-      this.emit('error', new ScolaError('500 invalid_socket'));
+      this._error('500 invalid_socket');
       return this;
     }
 
@@ -369,12 +343,12 @@ export default class Observable extends EventEmitter {
 
   update() {
     if (this._locked === true) {
-      this.emit('error', new ScolaError('500 invalid_state'));
+      this._error('500 invalid_state');
       return this;
     }
 
     if (this.connected() === false) {
-      this.emit('error', new ScolaError('500 invalid_socket'));
+      this._error('500 invalid_socket');
       return this;
     }
 
@@ -403,12 +377,12 @@ export default class Observable extends EventEmitter {
 
   delete() {
     if (this._locked === true) {
-      this.emit('error', new ScolaError('500 invalid_state'));
+      this._error('500 invalid_state');
       return this;
     }
 
     if (this.connected() === false) {
-      this.emit('error', new ScolaError('500 invalid_socket'));
+      this._error('500 invalid_socket');
       return this;
     }
 
@@ -433,18 +407,6 @@ export default class Observable extends EventEmitter {
 
     request.end();
     return this;
-  }
-
-  _bindSource() {
-    if (this._source) {
-      this._source.on('set', this._handleSet);
-    }
-  }
-
-  _unbindSource() {
-    if (this._source) {
-      this._source.removeListener('set', this._handleSet);
-    }
   }
 
   _bindRequest() {
@@ -479,8 +441,7 @@ export default class Observable extends EventEmitter {
 
   _select(error, response) {
     if (error instanceof Error === true) {
-      this.emit('error', error);
-      this._destroy();
+      this._error(error.message, true);
       return;
     }
 
@@ -492,13 +453,13 @@ export default class Observable extends EventEmitter {
     this._locked = false;
 
     if (error instanceof Error === true) {
-      this.emit('error', error);
+      this._error(error.message);
       return;
     }
 
     this._extract(response, (data) => {
       if (response.status() !== 201) {
-        this.emit('error', new ScolaError(data));
+        this._error(data);
         return;
       }
 
@@ -510,13 +471,13 @@ export default class Observable extends EventEmitter {
     this._locked = false;
 
     if (error instanceof Error === true) {
-      this.emit('error', error);
+      this._error(error.message);
       return;
     }
 
     this._extract(response, (data) => {
       if (response.status() !== 200) {
-        this.emit('error', new ScolaError(data));
+        this._error(data);
         return;
       }
 
@@ -528,13 +489,13 @@ export default class Observable extends EventEmitter {
     this._locked = false;
 
     if (error instanceof Error === true) {
-      this.emit('error', error);
+      this._error(error.message);
       return;
     }
 
     this._extract(response, (data) => {
       if (response.status() !== 200) {
-        this.emit('error', new ScolaError(data));
+        this._error(data);
         return;
       }
 
@@ -548,7 +509,7 @@ export default class Observable extends EventEmitter {
     }
 
     if (this._response.status() >= 400) {
-      this._error(data);
+      this._error(data, true);
       return;
     }
 
@@ -575,9 +536,12 @@ export default class Observable extends EventEmitter {
     }
   }
 
-  _error(data) {
-    this.emit('error', new ScolaError(data));
-    this._destroy();
+  _error(message, destroy = false) {
+    this.emit('error', new ScolaError(message));
+
+    if (destroy === true) {
+      this._destroy();
+    }
   }
 
   _set(event) {
@@ -603,7 +567,7 @@ export default class Observable extends EventEmitter {
 
     response.once('error', (error) => {
       response.removeAllListeners();
-      this.emit('error', error);
+      this._error(error.message);
     });
 
     response.on('data', (chunk) => {
