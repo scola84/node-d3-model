@@ -148,30 +148,35 @@ export default class Cache {
 
   _bindModel() {
     if (this._model) {
+      this._model.setMaxListeners(this._model.getMaxListeners() + 1);
       this._model.on('clear', this._handleClear);
     }
   }
 
   _unbindModel() {
     if (this._model) {
+      this._model.setMaxListeners(this._model.getMaxListeners() - 1);
       this._model.removeListener('clear', this._handleClear);
     }
   }
 
   _bindLocal() {
     if (this._model) {
+      this._model.setMaxListeners(this._model.getMaxListeners() + 1);
       this._model.on('set', this._handleSet);
     }
   }
 
   _unbindLocal() {
     if (this._model) {
+      this._model.setMaxListeners(this._model.getMaxListeners() - 1);
       this._model.removeListener('set', this._handleSet);
     }
   }
 
   _bindRemote() {
     if (this._model) {
+      this._model.setMaxListeners(this._model.getMaxListeners() + 1);
       this._model.on('cache', this._handleCache);
       this._model.on('error', this._handleError);
       this._model.on('publish', this._handlePublish);
@@ -182,6 +187,7 @@ export default class Cache {
 
   _unbindRemote() {
     if (this._model) {
+      this._model.setMaxListeners(this._model.getMaxListeners() - 1);
       this._model.removeListener('cache', this._handleCache);
       this._model.removeListener('error', this._handleError);
       this._model.removeListener('publish', this._handlePublish);

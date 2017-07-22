@@ -61,7 +61,7 @@ export default class Observer extends EventEmitter {
   _bindModel() {
     if (this._model) {
       this._model.setMaxListeners(this._model.getMaxListeners() + 1);
-      this._model.addListener('set', this._handleSet);
+      this._model.on('set', this._handleSet);
     }
   }
 

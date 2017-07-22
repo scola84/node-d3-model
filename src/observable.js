@@ -411,6 +411,7 @@ export default class Observable extends EventEmitter {
 
   _bindRequest() {
     if (this._request) {
+      this._request.setMaxListeners(this._request.getMaxListeners() + 1);
       this._request.on('error', this._handleError);
       this._request.on('response', this._handleResponse);
     }
@@ -418,6 +419,7 @@ export default class Observable extends EventEmitter {
 
   _unbindRequest() {
     if (this._request) {
+      this._request.setMaxListeners(this._request.getMaxListeners() - 1);
       this._request.removeListener('error', this._handleError);
       this._request.removeListener('response', this._handleResponse);
     }
@@ -425,6 +427,7 @@ export default class Observable extends EventEmitter {
 
   _bindResponse() {
     if (this._response) {
+      this._response.setMaxListeners(this._response.getMaxListeners() + 1);
       this._response.on('data', this._handleData);
       this._response.on('end', this._handleEnd);
       this._response.on('error', this._handleError);
@@ -433,6 +436,7 @@ export default class Observable extends EventEmitter {
 
   _unbindResponse() {
     if (this._response) {
+      this._response.setMaxListeners(this._response.getMaxListeners() - 1);
       this._response.removeListener('data', this._handleData);
       this._response.removeListener('end', this._handleEnd);
       this._response.removeListener('error', this._handleError);
