@@ -241,10 +241,16 @@ export default class Observable extends EventEmitter {
   }
 
   clear() {
+    Object.keys(this._local).forEach((name) => {
+      this.emit('set', {
+        changed: true,
+        name
+      });
+    });
+
     this._local = {};
     this._remote = {};
 
-    this.emit('clear');
     return this;
   }
 
