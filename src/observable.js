@@ -202,8 +202,11 @@ export default class Observable extends EventEmitter {
   }
 
   reset() {
-    this._local = {};
-    this.assign(this._remote, false);
+    const remote = this._remote;
+    this.clear();
+
+    this._remote = remote;
+    this.assign(remote, false);
 
     return this;
   }
